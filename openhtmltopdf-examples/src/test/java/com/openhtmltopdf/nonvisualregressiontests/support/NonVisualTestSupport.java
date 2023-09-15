@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 
 import com.openhtmltopdf.nonvisualregressiontests.NonVisualRegressionTest;
@@ -93,6 +94,6 @@ public class NonVisualTestSupport {
     }
 
     private PDDocument load(String filename) throws IOException {
-        return PDDocument.load(new File(outPath, filename + ".pdf"));
+        return Loader.loadPDF(new File(outPath, filename + ".pdf"));
     }
 }

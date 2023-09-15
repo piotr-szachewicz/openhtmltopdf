@@ -316,12 +316,14 @@ public class PdfBoxForm {
         
         field.setOptions(values, labels);
         field.setSelectedOptionsIndex(selected);
-        
-        FSColor color = ctrl.box.getStyle().getColor();
-        String colorOperator = getColorOperator(color);
-        
-        String fontInstruction = "/" + pair.fontName + " 0 Tf";
-        field.setDefaultAppearance(fontInstruction + ' ' + colorOperator);
+
+        if (pair.fontName != null) {
+            FSColor color = ctrl.box.getStyle().getColor();
+            String colorOperator = getColorOperator(color);
+
+            String fontInstruction = "/" + pair.fontName + " 0 Tf";
+            field.setDefaultAppearance(fontInstruction + ' ' + colorOperator);
+        }
         
         if (ctrl.box.getElement().hasAttribute("required")) {
             field.setRequired(true);
@@ -362,12 +364,14 @@ public class PdfBoxForm {
         field.setOptions(values, labels);
         field.setValue(selectedLabel);
         field.setDefaultValue(selectedLabel);
-        
-        FSColor color = ctrl.box.getStyle().getColor();
-        String colorOperator = getColorOperator(color);
-        
-        String fontInstruction = "/" + pair.fontName + " 0 Tf";
-        field.setDefaultAppearance(fontInstruction + ' ' + colorOperator);
+
+        if (pair.fontName != null) {
+            FSColor color = ctrl.box.getStyle().getColor();
+            String colorOperator = getColorOperator(color);
+
+            String fontInstruction = "/" + pair.fontName + " 0 Tf";
+            field.setDefaultAppearance(fontInstruction + ' ' + colorOperator);
+        }
         
         if (ctrl.box.getElement().hasAttribute("required")) {
             field.setRequired(true);
@@ -420,12 +424,14 @@ public class PdfBoxForm {
         PDTextField field = new PDTextField(acro);
 
         setPartialNameToField(ctrl, field);
-        
-        FSColor color = ctrl.box.getStyle().getColor();
-        String colorOperator = getColorOperator(color);
 
-        String fontInstruction = "/" + pair.fontName + " 0 Tf";
-        field.setDefaultAppearance(fontInstruction + ' ' + colorOperator);
+        if (pair.fontName != null) {
+            FSColor color = ctrl.box.getStyle().getColor();
+            String colorOperator = getColorOperator(color);
+
+            String fontInstruction = "/" + pair.fontName + " 0 Tf";
+            field.setDefaultAppearance(fontInstruction + ' ' + colorOperator);
+        }
         
         String value = ctrl.box.getElement().getNodeName().equals("textarea") ?
                 getTextareaText(ctrl.box.getElement()) :
@@ -733,13 +739,13 @@ public class PdfBoxForm {
         
         if (ctrl.box.getElement().getAttribute("type").equals("reset")) {
             PDActionResetForm reset = new PDActionResetForm();
-            reset.setFields(fieldsToInclude.getCOSArray());
+            reset.setFields(fieldsToInclude.toList());
             widget.setAction(reset);;
         } else {
             PDFileSpecification fs = PDFileSpecification.createFS(new COSString(element.getAttribute("action")));
             PDActionSubmitForm submit = new PDActionSubmitForm();
             
-            submit.setFields(fieldsToInclude.getCOSArray());
+            submit.setFields(fieldsToInclude.toList());
             submit.setFile(fs);
 
             if (!element.getAttribute("method").equalsIgnoreCase("post")) {
