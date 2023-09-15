@@ -36,9 +36,9 @@
   </modules>
 
   <scm>
-    <connection>scm:git:git://github.com/danfickle/openhtmltopdf.git</connection>
-    <developerConnection>scm:git:https://github.com/danfickle/openhtmltopdf.git</developerConnection>
-    <url>git://github.com/danfickle/openhtmltopdf.git</url>
+    <connection>scm:git:git://github.com/imario42/openhtmltopdf.git</connection>
+    <developerConnection>scm:git:https://github.com/imario42/openhtmltopdf.git</developerConnection>
+    <url>git://github.com/imario42/openhtmltopdf.git</url>
     <tag>openhtmltopdf-parent-1.1.0</tag>
   </scm>
 
