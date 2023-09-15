@@ -2,8 +2,8 @@ package com.openhtmltopdf.nonvisualregressiontests.support;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,11 +40,16 @@ public class NonVisualTestSupport {
     }
 
     final String baseResPath;
-    final String outPath;
+    final Path outPath;
 
     public NonVisualTestSupport(String baseResourcePath, String outFilePath) {
         this.baseResPath = baseResourcePath;
-        this.outPath = outFilePath;
+        this.outPath = Paths.get(outFilePath);
+        try {
+            Files.createDirectories(this.outPath);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void render(
@@ -64,7 +69,7 @@ public class NonVisualTestSupport {
     }
 
     private void writePdfToFile(String fileName, ByteArrayOutputStream actual) throws IOException {
-        Files.write(Paths.get(outPath, fileName + ".pdf"), actual.toByteArray());
+        Files.write(outPath.resolve(fileName + ".pdf"), actual.toByteArray());
     }
 
     private String loadHtml(String fileName) throws IOException {
@@ -78,7 +83,7 @@ public class NonVisualTestSupport {
 
         render(fileName, html, config);
 
-        return new TestDocument(Paths.get(outPath, fileName + ".pdf"), load(fileName), delete);
+        return new TestDocument(outPath.resolve(fileName + ".pdf"), load(fileName), delete);
     }
 
     public TestDocument run(String fileName, BuilderConfig config) throws IOException {
@@ -94,6 +99,6 @@ public class NonVisualTestSupport {
     }
 
     private PDDocument load(String filename) throws IOException {
-        return Loader.loadPDF(new File(outPath, filename + ".pdf"));
+        return Loader.loadPDF(outPath.resolve(filename + ".pdf").toFile());
     }
 }
