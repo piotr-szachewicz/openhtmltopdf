@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>at.datenwort.openhtmltopdf</groupId>
+    <groupId>at.datenwort.commons</groupId>
     <artifactId>openhtmltopdf-parent</artifactId>
     <version>1.1.2-SNAPSHOT</version>
   </parent>
@@ -65,7 +65,7 @@
 
   <dependencies>
     <dependency>
-        <groupId>at.datenwort.openhtmltopdf</groupId>
+        <groupId>at.datenwort.commons</groupId>
         <artifactId>openhtmltopdf-core</artifactId>
         <version>${project.version}</version>
     </dependency>
