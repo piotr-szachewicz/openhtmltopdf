@@ -4,10 +4,13 @@ import java.awt.FontFormatException;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
 import com.openhtmltopdf.extend.UserAgentCallback;
+import org.apache.batik.script.ImportInfo;
+import org.apache.batik.script.rhino.RhinoClassShutter;
 import org.w3c.dom.Element;
 
 import com.openhtmltopdf.css.sheet.FontFaceRule;
@@ -35,7 +38,7 @@ public class BatikSVGDrawer implements SVGDrawer {
         SECURE,
         INSECURE_ALLOW_EXTERNAL_RESOURCE_REQUESTS;
     }
-    
+
     /**
      * Creates a <code>SVGDrawer</code> that can allow arbitary scripts to run or allow arbitary external
      * resources to be requested.

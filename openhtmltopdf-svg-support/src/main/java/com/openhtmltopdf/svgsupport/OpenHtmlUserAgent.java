@@ -1,7 +1,9 @@
 package com.openhtmltopdf.svgsupport;
 
 import com.openhtmltopdf.util.LogMessageId;
+import org.apache.batik.bridge.ExternalResourceSecurity;
 import org.apache.batik.bridge.FontFamilyResolver;
+import org.apache.batik.bridge.ScriptSecurity;
 import org.apache.batik.bridge.UserAgentAdapter;
 import org.apache.batik.util.ParsedURL;
 
@@ -29,7 +31,17 @@ public class OpenHtmlUserAgent extends UserAgentAdapter {
 	public FontFamilyResolver getFontFamilyResolver() {
 		return this.resolver;
 	}
-	
+
+    @Override
+    public void displayError(Exception e) {
+        XRLog.log(Level.SEVERE, LogMessageId.LogMessageId1Param.GENERAL_MESSAGE, e.getLocalizedMessage(), e);
+    }
+
+    @Override
+    public void displayMessage(String message) {
+        XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.GENERAL_MESSAGE, message);
+    }
+
     @Override
     public void checkLoadScript(String scriptType, ParsedURL scriptURL, ParsedURL docURL) throws SecurityException {
         if (!this.allowScripts) {
