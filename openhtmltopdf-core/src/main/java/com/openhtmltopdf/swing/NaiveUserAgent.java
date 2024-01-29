@@ -80,6 +80,7 @@ public abstract class NaiveUserAgent implements UserAgentCallback, DocumentListe
     this._protocolsStreamFactory.put("http", factory);
     this._protocolsStreamFactory.put("https", factory);
     this._protocolsStreamFactory.put("data", new DataUriFactory());
+    this._protocolsStreamFactory.put("classpath", new ClassPathStreamFactory());
   }
 
   public static class ClassPathStream implements FSStream {
@@ -212,7 +213,6 @@ public abstract class NaiveUserAgent implements UserAgentCallback, DocumentListe
     return null;
   }
 
-      this._protocolsStreamFactory.put("classpath", new ClassPathStreamFactory());
   public void setProtocolsStreamFactory(Map<String, FSStreamFactory> protocolsStreamFactory) {
     this._protocolsStreamFactory = protocolsStreamFactory;
   }
