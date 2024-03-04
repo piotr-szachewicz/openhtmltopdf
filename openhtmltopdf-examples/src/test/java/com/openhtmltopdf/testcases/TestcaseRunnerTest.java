@@ -1,6 +1,5 @@
 package com.openhtmltopdf.testcases;
 
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -40,7 +39,7 @@ public class TestcaseRunnerTest {
     private void confirmPages(String filename, int expectedPages) throws IOException {
         File pdf = new File(targetDirectory, filename + ".pdf");
 
-        try (PDDocument doc = Loader.loadPDF(pdf)) {
+        try (PDDocument doc = PDDocument.load(pdf)) {
             assertEquals(expectedPages, doc.getNumberOfPages());
         }
     }

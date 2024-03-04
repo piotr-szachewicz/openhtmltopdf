@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -102,7 +101,7 @@ public class Application {
 
         Files.write(new File(webTemplateBase, template + ".pdf").toPath(), actual);
 
-        try (PDDocument docActual = Loader.loadPDF(actual)) {
+        try (PDDocument docActual = PDDocument.load(actual)) {
             PDFRenderer rendActual = new PDFRenderer(docActual);
             BufferedImage bi = rendActual.renderImageWithDPI(0, 192f, ImageType.RGB);
 

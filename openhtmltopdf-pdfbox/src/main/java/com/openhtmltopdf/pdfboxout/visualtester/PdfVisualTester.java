@@ -16,8 +16,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -157,8 +155,8 @@ public class PdfVisualTester {
             return problems;
         }
         
-        try (PDDocument docActual = Loader.loadPDF(actual);
-             PDDocument docExpected = Loader.loadPDF(expected)) {
+        try (PDDocument docActual = PDDocument.load(actual);
+             PDDocument docExpected = PDDocument.load(expected)) {
 
             PDFRenderer rendActual = new PDFRenderer(docActual);
             PDFRenderer rendExpected = new PDFRenderer(docExpected);

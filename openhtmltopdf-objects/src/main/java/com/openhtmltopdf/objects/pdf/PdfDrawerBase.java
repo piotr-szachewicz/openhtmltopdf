@@ -3,10 +3,9 @@ package com.openhtmltopdf.objects.pdf;
 import com.openhtmltopdf.extend.FSObjectDrawer;
 import com.openhtmltopdf.pdfboxout.PdfBoxOutputDevice;
 import com.openhtmltopdf.render.RenderingContext;
-import org.apache.pdfbox.io.RandomAccessReadBuffer;
+import org.apache.pdfbox.io.RandomAccessBuffer;
 import org.apache.pdfbox.multipdf.LayerUtility;
 import org.apache.pdfbox.pdfparser.PDFParser;
-import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
 import org.w3c.dom.Element;
 
@@ -36,11 +35,11 @@ public abstract class PdfDrawerBase implements FSObjectDrawer
         {
             try (InputStream inputStream = new URL(url).openStream())
             {
-                PDFParser pdfParser = new PDFParser(new RandomAccessReadBuffer(inputStream));
-                PDDocument pdfDocument = pdfParser.parse();
+                PDFParser pdfParser = new PDFParser(new RandomAccessBuffer(inputStream));
+                pdfParser.parse();
                 pdFormXObject = layerUtility
-                        .importPageAsForm(pdfDocument, pdfpage - 1);
-                pdfDocument.close();
+                        .importPageAsForm(pdfParser.getPDDocument(), pdfpage - 1);
+                pdfParser.getPDDocument().close();
             }
             map.put(url, pdFormXObject);
         }

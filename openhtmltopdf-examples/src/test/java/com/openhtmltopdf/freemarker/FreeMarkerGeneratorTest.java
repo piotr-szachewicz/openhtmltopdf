@@ -7,7 +7,6 @@ import com.openhtmltopdf.visualtest.TestSupport;
 
 import freemarker.template.TemplateException;
 
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -55,7 +54,7 @@ public class FreeMarkerGeneratorTest {
             fileOutputStream.write(pdf);
         }
 
-        try (PDDocument doc = Loader.loadPDF(pdfFile)) {
+        try (PDDocument doc = PDDocument.load(pdfFile)) {
             assertEquals(6, doc.getNumberOfPages());
         }
     }
@@ -82,7 +81,7 @@ public class FreeMarkerGeneratorTest {
             fileOutputStream.write(pdf);
         }
 
-        try (PDDocument doc = Loader.loadPDF(pdfFile)) {
+        try (PDDocument doc = PDDocument.load(pdfFile)) {
             assertEquals(31, doc.getNumberOfPages());
         }
 

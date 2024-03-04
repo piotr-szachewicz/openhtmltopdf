@@ -19,10 +19,7 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import java.awt.*;
-import java.util.Arrays;
-import java.util.EnumMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 
 public class ZXingObjectDrawer implements FSObjectDrawer {
@@ -103,14 +100,12 @@ public class ZXingObjectDrawer implements FSObjectDrawer {
         String value = e.getAttribute("value");
         BarcodeFormat barcodeFormat = e.hasAttribute("format") ? BarcodeFormat.valueOf(e.getAttribute("format")) : BarcodeFormat.QR_CODE;
 
-        int finalWidth = (int) (width / dotsPerPixel);
-        int finalHeight = (int) (height / dotsPerPixel);
+        int finalWidth = (int) (width/dotsPerPixel);
+        int finalHeight = (int) (height/dotsPerPixel);
         try {
             BitMatrix bitMatrix = mfw.encode(value, barcodeFormat, finalWidth, finalHeight, encodeHints);
 
             outputDevice.drawWithGraphics((float) x, (float) y, (float) width, (float) height, graphics2D -> {
-                graphics2D.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-
                 //generating a vector from the bitmatrix don't seems to be straightforward, thus a bitmap image...
                 graphics2D.drawImage(MatrixToImageWriter.toBufferedImage(bitMatrix, new MatrixToImageConfig(onColor, offColor)), 0, 0, finalWidth, finalHeight, null);
             });

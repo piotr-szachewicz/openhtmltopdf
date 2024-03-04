@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSDocument;
 import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.cos.COSObject;
@@ -121,7 +120,7 @@ public class NonVisualRegressionTest {
     }
 
     private static PDDocument load(String filename) throws IOException {
-        return Loader.loadPDF(new File(OUT_PATH, filename + ".pdf"));
+        return PDDocument.load(new File(OUT_PATH, filename + ".pdf"));
     }
 
     private static void remove(String fileName, PDDocument doc) throws IOException {
