@@ -73,126 +73,13 @@ public abstract class NaiveUserAgent implements UserAgentCallback, DocumentListe
 
   protected FSUriResolver _resolver = DEFAULT_URI_RESOLVER;
   protected String _baseUri;
-  protected Map<String, FSStreamFactory> _protocolsStreamFactory = new HashMap<>();
+  protected Map<String, FSStreamFactory> _protocolsStreamFactory = new HashMap<>(2);
 
   public NaiveUserAgent() {
     FSStreamFactory factory = new DefaultHttpStreamFactory();
     this._protocolsStreamFactory.put("http", factory);
     this._protocolsStreamFactory.put("https", factory);
     this._protocolsStreamFactory.put("data", new DataUriFactory());
-  }
-
-  public static class ClassPathStream implements FSStream {
-
-    private final InputStream strm;
-
-    public ClassPathStream(InputStream strm) {
-      this.strm = strm;
-    }
-
-    @Override
-    public InputStream getStream() {
-      return strm;
-    }
-
-    @Override
-    public Reader getReader() {
-      InputStream is = getStream();
-      if (is == null) {
-        return null;
-      }
-      return new InputStreamReader(is, StandardCharsets.UTF_8);
-    }
-  }
-
-  public static class ClassPathStreamFactory implements FSStreamFactory {
-
-    private final ClassLoader classLoader;
-
-    public ClassPathStreamFactory() {
-      this(null);
-    }
-
-    public ClassPathStreamFactory(ClassLoader classLoader) {
-      this.classLoader = classLoader != null ? classLoader : getClassLoader();
-    }
-
-    @Override
-    public FSStream getUrl(String uri) {
-      InputStream is = uri != null ? getStream(uri) : null;
-      return new ClassPathStream(is);
-    }
-
-    private String getPath(String uri) {
-      URI fullUri;
-      try {
-        fullUri = new URI(uri);
-      } catch (URISyntaxException e) {
-        XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.EXCEPTION_MALFORMED_URL, uri, e);
-        return null;
-      }
-
-      String path = fullUri.getPath();
-      if (path.startsWith("/")) {
-        path = path.substring(1);
-      }
-      return path;
-    }
-
-    private InputStream getStream(String uri) {
-      if (uri == null) {
-        return null;
-      }
-
-      String path = getPath(uri);
-      if (path == null) {
-        return null;
-      }
-
-      InputStream is;
-      if (classLoader != null) {
-        is = classLoader.getResourceAsStream(path);
-      }
-      else {
-        is = ClassLoader.getSystemResourceAsStream(path);
-      }
-      if (is == null) {
-        XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.EXCEPTION_ITEM_AT_URI_NOT_FOUND, uri);
-      }
-      return is;
-    }
-
-    /**
-     * Return the ClassLoader to use: typically the thread context ClassLoader, if available;
-     * the ClassLoader that loaded this class will be used as fallback.
-     *
-     * @return the ClassLoader (only {@code null} if even the system ClassLoader isn't accessible)
-     * @see Thread#getContextClassLoader()
-     * @see ClassLoader#getSystemClassLoader()
-     */
-    private static ClassLoader getClassLoader() {
-      ClassLoader cl = null;
-      try {
-        cl = Thread.currentThread().getContextClassLoader();
-      }
-      catch (Throwable ex) {
-        // Cannot access thread context ClassLoader - falling back...
-      }
-      if (cl == null) {
-        // No thread context class loader -> use class loader of this class.
-        cl = ClassPathStream.class.getClassLoader();
-        if (cl == null) {
-          // getClassLoader() returning null indicates the bootstrap ClassLoader
-          try {
-            cl = ClassLoader.getSystemClassLoader();
-          }
-          catch (Throwable ex) {
-            // Cannot access system ClassLoader - oh well, maybe the caller can live with null...
-          }
-        }
-      }
-      return cl;
-    }
   }
 
   /**
@@ -212,7 +99,6 @@ public abstract class NaiveUserAgent implements UserAgentCallback, DocumentListe
     return null;
   }
 
-      this._protocolsStreamFactory.put("classpath", new ClassPathStreamFactory());
   public void setProtocolsStreamFactory(Map<String, FSStreamFactory> protocolsStreamFactory) {
     this._protocolsStreamFactory = protocolsStreamFactory;
   }
