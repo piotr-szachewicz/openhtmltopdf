@@ -45,14 +45,14 @@ jobs:
           java-version: 17
           cache: maven
       - name: Upload artifact
-        run: mvn -B deploy -Dgithub-release -e -Drevision=dev-${{ github.sha }}
+        run: mvn -B deploy -Dgithub-release -e -Drevision=pdfbox2-${{ github.sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Create release
         id: create_release
         uses: elgohr/Github-Release-Action@v5
         with:
-          title: openhtmltopdf.dev
+          title: openhtmltopdf - pdfbox 2-version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
