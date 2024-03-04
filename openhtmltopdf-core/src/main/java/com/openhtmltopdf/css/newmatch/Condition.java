@@ -371,10 +371,10 @@ abstract class Condition {
 
     private static class ClassCondition extends Condition {
 
-        private String _className;
+        private String _paddedClassName;
 
         ClassCondition(String className) {
-            _className = className;
+            _paddedClassName = " " + className + " ";
         }
 
         @Override
@@ -383,28 +383,20 @@ abstract class Condition {
                 return false;
             }
             String c = attRes.getClass(e);
-            if (c == null || c.length() < _className.length()) {
+            if (c == null) {
                 return false;
             }
 
             // This is much faster than calling `split()` and comparing individual values in a loop.
             // NOTE: In jQuery, for example, the attribute value first has whitespace normalized to spaces. But
             // in an XML DOM, space normalization in attributes is supposed to have happened already.
-            int idx = c.indexOf(_className);
-            if (idx == -1){
-                return false;
-            }
-            int beforeMatch = idx - 1;
-            int afterMatch = idx + _className.length();
-            boolean delimitedBefore = beforeMatch < 0 || Character.isWhitespace(c.charAt(beforeMatch));
-            boolean delimitedAfter = afterMatch == c.length() || Character.isWhitespace(c.charAt(afterMatch));
-            return delimitedBefore && delimitedAfter;
+            return (" " + c + " ").indexOf(_paddedClassName) != -1;
         }
 
         @Override
         public void toCSS(StringBuilder sb) {
             sb.append('.');
-            sb.append(_className);
+            sb.append(_paddedClassName.substring(1, _paddedClassName.length() - 1));
         }
     }
 
