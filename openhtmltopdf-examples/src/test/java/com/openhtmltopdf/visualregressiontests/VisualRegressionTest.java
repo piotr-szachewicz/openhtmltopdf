@@ -8,7 +8,6 @@ import static org.junit.Assert.assertTrue;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.Iterator;
 
 import com.openhtmltopdf.bidi.support.ICUBidiReorderer;
 import com.openhtmltopdf.bidi.support.ICUBidiSplitter;
@@ -19,8 +18,6 @@ import com.openhtmltopdf.outputdevice.helper.BaseRendererBuilder.FontStyle;
 import com.openhtmltopdf.outputdevice.helper.ExternalResourceControlPriority;
 import com.openhtmltopdf.outputdevice.helper.ExternalResourceType;
 
-import org.apache.batik.script.ImportInfo;
-import org.apache.batik.script.rhino.RhinoClassShutter;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -867,17 +864,6 @@ public class VisualRegressionTest {
         assertTrue(vt.runTest("malicious-svg-secure-mode", TestSupport.WITH_SVG));
     }
 
-
-    public static void whitelistDomClassesInRhino() {
-        Iterator<?> iterClasses = ImportInfo.getImports().getClasses();
-        while (iterClasses.hasNext()) {
-            RhinoClassShutter.WHITELIST.add(iterClasses.next().toString());
-        }
-        RhinoClassShutter.WHITELIST.add("org.apache.batik.anim.dom.SVGOMDocument");
-        RhinoClassShutter.WHITELIST.add("org.apache.batik.anim.dom.SVGOMCircleElement");
-        RhinoClassShutter.WHITELIST.add("org.apache.batik.dom.svg.SVGOMEvent");
-    }
-
     /**
      * Tests that in insecure mode, the svg renderer will allow scripts and external resource
      * requests.
@@ -887,16 +873,9 @@ public class VisualRegressionTest {
      */
     @Test
     public void testMaliciousSvgInsecureMode() throws IOException {
-        try {
-            whitelistDomClassesInRhino();
-
-            assertTrue(vt.runTest("malicious-svg-insecure-mode", builder -> {
-                builder.useSVGDrawer(new BatikSVGDrawer(SvgScriptMode.INSECURE_ALLOW_SCRIPTS, SvgExternalResourceMode.INSECURE_ALLOW_EXTERNAL_RESOURCE_REQUESTS));
-            }));
-        }
-        finally {
-            RhinoClassShutter.WHITELIST.clear();
-        }
+        assertTrue(vt.runTest("malicious-svg-insecure-mode", builder -> {
+            builder.useSVGDrawer(new BatikSVGDrawer(SvgScriptMode.INSECURE_ALLOW_SCRIPTS, SvgExternalResourceMode.INSECURE_ALLOW_EXTERNAL_RESOURCE_REQUESTS));
+        }));
     }
     
     /**
