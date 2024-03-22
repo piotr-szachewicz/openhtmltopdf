@@ -19,12 +19,6 @@
  */
 package com.openhtmltopdf.context;
 
-import java.io.IOException;
-import java.io.Reader;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Level;
-
 import com.openhtmltopdf.css.extend.StylesheetFactory;
 import com.openhtmltopdf.css.parser.CSSParser;
 import com.openhtmltopdf.css.sheet.Ruleset;
@@ -34,6 +28,13 @@ import com.openhtmltopdf.extend.UserAgentCallback;
 import com.openhtmltopdf.resource.CSSResource;
 import com.openhtmltopdf.util.LogMessageId;
 import com.openhtmltopdf.util.XRLog;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.Level;
 
 /**
  * A Factory class for Cascading Style Sheets. Sheets are parsed using a single
@@ -109,15 +110,17 @@ public class StylesheetFactoryImpl implements StylesheetFactory {
      * Returns a sheet by its key
      * null if not able to load
      *
-     *
      * @param info The StylesheetInfo for this sheet
      * @return The stylesheet
      */
     public Stylesheet getStylesheet(StylesheetInfo info) {
+        if (info.isInline()) {
+            return parse(new StringReader(info.getContent()), info);
+        }
+
         XRLog.log(Level.INFO, LogMessageId.LogMessageId1Param.LOAD_REQUESTING_STYLESHEET_AT_URI, info.getUri());
 
         Integer includeCount = _seenStylesheetUris.get(info.getUri());
-
         if (includeCount != null && includeCount >= MAX_STYLESHEET_INCLUDES) {
             // Probably an import loop.
             XRLog.log(Level.SEVERE, LogMessageId.LogMessageId2Param.CSS_PARSE_TOO_MANY_STYLESHEET_IMPORTS, includeCount, info.getUri());
@@ -132,7 +135,7 @@ public class StylesheetFactoryImpl implements StylesheetFactory {
     public void setUserAgentCallback(UserAgentCallback userAgent) {
         _userAgentCallback = userAgent;
     }
-    
+
     public void setSupportCMYKColors(boolean b) {
         _cssParser.setSupportCMYKColors(b);
     }

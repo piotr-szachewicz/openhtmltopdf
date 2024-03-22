@@ -3,8 +3,11 @@ package com.openhtmltopdf.util;
 public interface LogMessageId {
 
     Enum<?> getEnum();
+
     String getWhere();
+
     String getMessageFormat();
+
     String formatMessage(Object[] args);
 
     enum LogMessageId0Param implements LogMessageId {
@@ -58,7 +61,6 @@ public interface LogMessageId {
         EXCEPTION_COULD_NOT_READ_PDF_AS_SRC_FOR_IMG(XRLog.EXCEPTION, "Could not read pdf passed as src for img element!"),
         EXCEPTION_COULD_NOT_PARSE_DEFAULT_STYLESHEET(XRLog.EXCEPTION, "Could not parse default stylesheet"),
         EXCEPTION_SELECTOR_BAD_SIBLING_AXIS(XRLog.EXCEPTION, "Bad sibling axis");
-        
 
         private final String where;
         private final String messageFormat;
@@ -92,6 +94,7 @@ public interface LogMessageId {
     enum LogMessageId1Param implements LogMessageId {
         CSS_PARSE_REMOVING_STYLESHEET_URI_FROM_CACHE_BY_REQUEST(XRLog.CSS_PARSE, "Removing stylesheet '{}' from cache by request."),
         CSS_PARSE_REQUESTED_REMOVING_STYLESHEET_URI_NOT_IN_CACHE(XRLog.CSS_PARSE, "Requested removing stylesheet '{}', but it's not in cache."),
+        CSS_PARSE_LINK_TYPE_UNSPECIFIED(XRLog.CSS_PARSE, "Link type unspecified (href=\"{}\"). Using \"text/css\" as default."),
 
         XML_ENTITIES_SAX_FEATURE_NOT_SUPPORTED(XRLog.XML_ENTITIES, "SAX feature not supported on this XMLReader: {}"),
         XML_ENTITIES_SAX_FEATURE_NOT_RECOGNIZED(XRLog.XML_ENTITIES, "SAX feature not recognized on this XMLReader: {}. Feature may be properly named, but not recognized by this parser."),
@@ -126,7 +129,7 @@ public interface LogMessageId {
         LOAD_COULD_NOT_LOAD_PREFERRED_XML(XRLog.LOAD, "Could not load preferred XML {}, using default which may not be secure."),
         LOAD_LOADED_DOCUMENT_TIME(XRLog.LOAD, "Loaded document in ~{}ms"),
         LOAD_SAX_XMLREADER_IN_USE(XRLog.LOAD, "SAX XMLReader in use (parser): {}"),
-        LOAD_XMLREADER_CLASS_SPECIFIED_COULD_NOT_BE_FOUND(XRLog.LOAD,"The XMLReader class you specified as a configuration property " +
+        LOAD_XMLREADER_CLASS_SPECIFIED_COULD_NOT_BE_FOUND(XRLog.LOAD, "The XMLReader class you specified as a configuration property " +
                 "could not be found. Class.forName() failed on " +
                 "{}. Please check classpath. Use value 'default' in " +
                 "FS configuration if necessary. Will now try JDK default."),
@@ -205,7 +208,7 @@ public interface LogMessageId {
     }
 
     enum LogMessageId2Param implements LogMessageId {
-        CSS_PARSE_TOO_MANY_STYLESHEET_IMPORTS(XRLog.CSS_PARSE, "Gave up after {} attempts to load stlyesheet at {} to avoid possible loop"),
+        CSS_PARSE_TOO_MANY_STYLESHEET_IMPORTS(XRLog.CSS_PARSE, "Gave up after {} attempts to load stylesheet at {} to avoid possible loop"),
         CSS_PARSE_COULDNT_PARSE_STYLESHEET_AT_URI(XRLog.CSS_PARSE, "Couldn't parse stylesheet at URI {}: {}"),
         CSS_PARSE_GENERIC_MESSAGE(XRLog.CSS_PARSE, "({}) {}"),
 
@@ -320,8 +323,8 @@ public interface LogMessageId {
         CASCADE_UNKNOWN_DATATYPE_FOR_RELATIVE_TO_ABSOLUTE(XRLog.CASCADE, "Asked to convert {} from relative to absolute, don't recognize the datatype '{}' {}({})"),
         CASCADE_CALC_FLOAT_PROPORTIONAL_VALUE_INFO_FONT_SIZE(XRLog.CASCADE, "{}, relative= {} ({}), absolute= {}"),
 
-        EXCEPTION_CONFIGURATION_WRONG_TYPE(XRLog.EXCEPTION, "Property '{}' was requested as a {}, but value of '{}' is not a {}. Check configuration."),;
-
+        EXCEPTION_CONFIGURATION_WRONG_TYPE(XRLog.EXCEPTION, "Property '{}' was requested as a {}, but value of '{}' is not a {}. Check configuration."),
+        ;
 
 
         private final String where;

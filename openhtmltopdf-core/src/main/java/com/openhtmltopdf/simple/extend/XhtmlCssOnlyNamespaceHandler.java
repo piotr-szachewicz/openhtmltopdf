@@ -18,30 +18,21 @@
  */
 package com.openhtmltopdf.simple.extend;
 
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Level;
-
-import com.openhtmltopdf.util.LogMessageId;
-import com.openhtmltopdf.util.OpenUtil;
-
-import org.w3c.dom.CharacterData;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.w3c.dom.Text;
-
 import com.openhtmltopdf.css.extend.StylesheetFactory;
 import com.openhtmltopdf.css.sheet.Stylesheet;
 import com.openhtmltopdf.css.sheet.StylesheetInfo;
 import com.openhtmltopdf.simple.NoNamespaceHandler;
+import com.openhtmltopdf.util.LogMessageId;
+import com.openhtmltopdf.util.OpenUtil;
 import com.openhtmltopdf.util.XRLog;
+import org.w3c.dom.CharacterData;
+import org.w3c.dom.*;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.util.*;
+import java.util.logging.Level;
 
 /**
  * Handles xhtml but only css styling is honored,
@@ -52,7 +43,8 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
     /**
      * Description of the Field
      */
-    final static String _namespace = "http://www.w3.org/1999/xhtml";
+    private final static String XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
+    private final static String PATH_TO_DEFAULT_STYLESHEET = "/resources/css/XhtmlNamespaceHandler.css";
 
     private static StylesheetInfo _defaultStylesheet;
     private static boolean _defaultStylesheetError = false;
@@ -66,7 +58,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
      */
     @Override
     public String getNamespace() {
-        return _namespace;
+        return XHTML_NAMESPACE;
     }
 
     /**
@@ -101,7 +93,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
     protected boolean isInteger(String value) {
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            if (! (c >= '0' && c <= '9')) {
+            if (!(c >= '0' && c <= '9')) {
                 return false;
             }
         }
@@ -120,13 +112,14 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
         while (current != null) {
             short nodeType = current.getNodeType();
             if (nodeType == Node.TEXT_NODE || nodeType == Node.CDATA_SECTION_NODE) {
-                Text t = (Text)current;
+                Text t = (Text) current;
                 result.append(t.getData());
             }
             current = current.getNextSibling();
         }
         return result.toString();
     }
+
     private static String collapseWhiteSpace(String text) {
         StringBuilder result = new StringBuilder();
         int l = text.length();
@@ -136,7 +129,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
                 result.append(' ');
                 while (++i < l) {
                     c = text.charAt(i);
-                    if (! Character.isWhitespace(c)) {
+                    if (!Character.isWhitespace(c)) {
                         i--;
                         break;
                     }
@@ -147,6 +140,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
         }
         return result.toString();
     }
+
     /**
      * Gets the linkUri attribute of the XhtmlNamespaceHandler object
      *
@@ -170,6 +164,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
         }
         return null;
     }
+
     /**
      * Gets the elementStyling attribute of the XhtmlNamespaceHandler object
      *
@@ -252,7 +247,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
         for (int i = 0; i < children.getLength(); i++) {
             Node n = children.item(i);
             if (n.getNodeType() == Node.ELEMENT_NODE && n.getNodeName().equals(targetName)) {
-                return (Element)n;
+                return (Element) n;
             }
         }
 
@@ -261,9 +256,7 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
 
     protected StylesheetInfo readStyleElement(Element style) {
         StylesheetInfo info = new StylesheetInfo();
-        String media = style.getAttribute("media");
-
-        info.setMedia(media);
+        info.setMedia(style.getAttribute("media"));
         info.setType(style.getAttribute("type"));
         info.setTitle(style.getAttribute("title"));
         info.setOrigin(StylesheetInfo.AUTHOR);
@@ -272,42 +265,43 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
         Node current = style.getFirstChild();
         while (current != null) {
             if (current instanceof CharacterData) {
-                buf.append(((CharacterData)current).getData());
+                buf.append(((CharacterData) current).getData());
             }
             current = current.getNextSibling();
         }
 
         String css = buf.toString().trim();
-        if (css.length() > 0) {
-            info.setContent(css);
-
-            return info;
-        } else {
+        if (css.isEmpty()) {
             return null;
         }
+
+        info.setContent(css);
+        return info;
     }
 
     protected StylesheetInfo readLinkElement(Element link) {
         String rel = link.getAttribute("rel").toLowerCase();
-        if (rel.indexOf("alternate") != -1) {
+        if (rel.contains("alternate")) {
             return null;
         }//DON'T get alternate stylesheets
-        if (rel.indexOf("stylesheet") == -1) {
+        if (!rel.contains("stylesheet")) {
             return null;
         }
 
         String type = link.getAttribute("type");
-        if (! (type.equals("") || type.equals("text/css"))) {
+        if (!(type.isEmpty() || type.equals("text/css"))) {
             return null;
+        }
+        if (type.isEmpty()) {
+            /* March 2024: https://archive.is/iuX5T
+            "given that CSS is the only stylesheet language used on the web, not only is it possible to omit the type attribute, but is actually now recommended practice"
+            We can expect "text/css" MIME type since the "stylesheet" relationship has already been established. */
+            type = "text/css";
+            XRLog.log(Level.FINE, LogMessageId.LogMessageId1Param.CSS_PARSE_LINK_TYPE_UNSPECIFIED, link.getAttribute("href"));
         }
 
         StylesheetInfo info = new StylesheetInfo();
-
-        if (type.equals("")) {
-            type = "text/css";
-        } // HACK is not entirely correct because default may be set by META tag or HTTP headers
         info.setType(type);
-
         info.setOrigin(StylesheetInfo.AUTHOR);
         info.setUri(link.getAttribute("href"));
 
@@ -334,17 +328,17 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
         //get the link elements
         Element html = doc.getDocumentElement();
         Element head = findFirstChild(html, "head");
-        if (head != null) {
+        if (head != null) { // March 2024: HTML spec disallows HTMLStyleElement outside HTMLHeadElement because it is "Metadata content"
             Node current = head.getFirstChild();
             while (current != null) {
                 if (current.getNodeType() == Node.ELEMENT_NODE) {
-                    Element elem = (Element)current;
+                    Element elem = (Element) current;
                     StylesheetInfo info = null;
                     String elemName = elem.getLocalName();
-                    if (elemName == null)
-                    {
+                    if (elemName == null) {
                         elemName = elem.getTagName();
                     }
+
                     if (elemName.equals("link")) {
                         info = readLinkElement(elem);
                     } else if (elemName.equals("style")) {
@@ -373,20 +367,19 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
             }
 
             StylesheetInfo info = new StylesheetInfo();
-            info.setUri(getNamespace());
+            info.setUri("classpath:" + PATH_TO_DEFAULT_STYLESHEET);
             info.setOrigin(StylesheetInfo.USER_AGENT);
             info.setMedia("all");
             info.setType("text/css");
 
-            InputStream is = null;
+            InputStream inputStream = null;
             try {
-                is = getDefaultStylesheetStream();
-
+                inputStream = getDefaultStylesheetStream();
                 if (_defaultStylesheetError) {
                     return null;
                 }
 
-                try (Reader reader = new InputStreamReader(is)) {
+                try (Reader reader = new InputStreamReader(inputStream)) {
                     Stylesheet sheet = factory.parse(reader, info);
                     info.setStylesheet(sheet);
                 }
@@ -394,25 +387,20 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
                 _defaultStylesheetError = true;
                 XRLog.log(Level.WARNING, LogMessageId.LogMessageId0Param.EXCEPTION_COULD_NOT_PARSE_DEFAULT_STYLESHEET, e);
             } finally {
-                OpenUtil.closeQuietly(is);
-                is = null;
+                OpenUtil.closeQuietly(inputStream);
             }
 
             _defaultStylesheet = info;
-
             return _defaultStylesheet;
         }
     }
 
     private InputStream getDefaultStylesheetStream() {
-        InputStream stream = null;
-        String defaultStyleSheet = "/resources/css/XhtmlNamespaceHandler.css";
-        stream = this.getClass().getResourceAsStream(defaultStyleSheet);
+        InputStream stream = this.getClass().getResourceAsStream(PATH_TO_DEFAULT_STYLESHEET);
         if (stream == null) {
-            XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.EXCEPTION_COULD_NOT_LOAD_DEFAULT_CSS, defaultStyleSheet);
+            XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.EXCEPTION_COULD_NOT_LOAD_DEFAULT_CSS, PATH_TO_DEFAULT_STYLESHEET);
             _defaultStylesheetError = true;
         }
-
         return stream;
     }
 
@@ -426,17 +414,16 @@ public class XhtmlCssOnlyNamespaceHandler extends NoNamespaceHandler {
             Node current = head.getFirstChild();
             while (current != null) {
                 if (current.getNodeType() == Node.ELEMENT_NODE) {
-                    Element elem = (Element)current;
+                    Element elem = (Element) current;
                     String elemName = elem.getLocalName();
-                    if (elemName == null)
-                    {
+                    if (elemName == null) {
                         elemName = elem.getTagName();
                     }
                     if (elemName.equals("meta")) {
                         String http_equiv = elem.getAttribute("http-equiv");
                         String content = elem.getAttribute("content");
 
-                        if(!http_equiv.equals("") && !content.equals("")) {
+                        if (!http_equiv.equals("") && !content.equals("")) {
                             metadata.put(http_equiv, content);
                         }
                     }

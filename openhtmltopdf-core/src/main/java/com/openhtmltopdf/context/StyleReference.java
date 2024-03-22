@@ -19,24 +19,13 @@
  */
 package com.openhtmltopdf.context;
 
-import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.logging.Level;
-
-import com.openhtmltopdf.css.sheet.FontFaceRule;
-import com.openhtmltopdf.util.LogMessageId;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-
 import com.openhtmltopdf.css.constants.CSSName;
-import com.openhtmltopdf.css.extend.AttributeResolver;
 import com.openhtmltopdf.css.extend.lib.DOMTreeResolver;
 import com.openhtmltopdf.css.newmatch.CascadedStyle;
+import com.openhtmltopdf.css.newmatch.Matcher;
 import com.openhtmltopdf.css.newmatch.PageInfo;
 import com.openhtmltopdf.css.parser.CSSPrimitiveValue;
+import com.openhtmltopdf.css.sheet.FontFaceRule;
 import com.openhtmltopdf.css.sheet.PropertyDeclaration;
 import com.openhtmltopdf.css.sheet.Stylesheet;
 import com.openhtmltopdf.css.sheet.StylesheetInfo;
@@ -45,7 +34,16 @@ import com.openhtmltopdf.extend.NamespaceHandler;
 import com.openhtmltopdf.extend.UserAgentCallback;
 import com.openhtmltopdf.extend.UserInterface;
 import com.openhtmltopdf.layout.SharedContext;
+import com.openhtmltopdf.util.LogMessageId;
 import com.openhtmltopdf.util.XRLog;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.logging.Level;
 
 
 /**
@@ -65,10 +63,10 @@ public class StyleReference {
      * Instance of our element-styles matching class. Will be null if new rules
      * have been added since last match.
      */
-    private com.openhtmltopdf.css.newmatch.Matcher _matcher;
+    private Matcher _matcher;
 
     private UserAgentCallback _uac;
-    
+
     public StyleReference(UserAgentCallback userAgent) {
         _uac = userAgent;
         _stylesheetFactory = new StylesheetFactoryImpl(userAgent);
@@ -97,43 +95,43 @@ public class StyleReference {
         _context = context;
         _nsh = nsh;
         _doc = doc;
-        AttributeResolver attRes = new StandardAttributeResolver(_nsh, _uac, ui);
 
         List<StylesheetInfo> infos = getStylesheets();
 
-        XRLog.log(Level.INFO, LogMessageId.LogMessageId1Param.MATCH_MEDIA_IS, _context.getMedia());
-        
-        _matcher = new com.openhtmltopdf.css.newmatch.Matcher(
-                new DOMTreeResolver(), 
-                attRes, 
-                _stylesheetFactory, 
-                readAndParseAll(infos, _context.getMedia()), 
+        XRLog.log(Level.FINE, LogMessageId.LogMessageId1Param.MATCH_MEDIA_IS, _context.getMedia());
+
+        _matcher = new Matcher(
+                new DOMTreeResolver(),
+                new StandardAttributeResolver(_nsh, _uac, ui),
+                _stylesheetFactory,
+                readAndParseAll(infos, _context.getMedia()),
                 _context.getMedia());
     }
-    
+
     private List<Stylesheet> readAndParseAll(List<StylesheetInfo> infos, String medium) {
-        List<Stylesheet> result = new ArrayList<>(infos.size() + 15);
-        
+        List<Stylesheet> result = new ArrayList<>(infos.size() * 2); // Local aggregation prevents tail recursion, but it's extremely unlikely for this to become an issue.
+
         for (StylesheetInfo info : infos) {
-            if (info.appliesToMedia(medium)) {
-                Stylesheet sheet = info.getStylesheet();
-                
-                if (sheet == null) {
-                    sheet = _stylesheetFactory.getStylesheet(info);
-                }
-                
-                if (sheet != null) {
-                    if (sheet.getImportRules().size() > 0) {
-                        result.addAll(readAndParseAll(sheet.getImportRules(), medium));
-                    }
-                    
-                    result.add(sheet);
-                } else {
-                    XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.LOAD_UNABLE_TO_LOAD_CSS_FROM_URI, info.getUri());
-                }
+            if (!info.appliesToMedia(medium)) {
+                continue;
             }
+
+            Stylesheet sheet = info.getStylesheet();
+            if (sheet == null) {
+                sheet = _stylesheetFactory.getStylesheet(info);
+            }
+            if (sheet == null) {
+                XRLog.log(Level.WARNING, LogMessageId.LogMessageId1Param.LOAD_UNABLE_TO_LOAD_CSS_FROM_URI, info.getUri());
+                continue;
+            }
+
+            if (!sheet.getImportRules().isEmpty()) {
+                result.addAll(readAndParseAll(sheet.getImportRules(), medium));
+            }
+
+            result.add(sheet);
         }
-        
+
         return result;
     }
 
@@ -146,24 +144,24 @@ public class StyleReference {
      * assigned value as a SAC CSSValue instance. The properties should have
      * been matched to the element when the Context was established for this
      * StyleReference on the Document to which the Element belongs.
-     * 
+     * <p>
      * Only used by broken DOM inspector.
      *
      * @param e The DOM Element for which to find properties
      * @return Map of CSS property names to CSSValue instance assigned to it.
      */
     @Deprecated
-	public java.util.Map<String, CSSPrimitiveValue> getCascadedPropertiesMap(Element e) {
+    public java.util.Map<String, CSSPrimitiveValue> getCascadedPropertiesMap(Element e) {
         CascadedStyle cs = _matcher.getCascadedStyle(e, false);
-        
-		java.util.Map<String, CSSPrimitiveValue> props = new java.util.LinkedHashMap<>();
-		
-		for (PropertyDeclaration pd : cs.getCascadedPropertyDeclarations()) {
+
+        java.util.Map<String, CSSPrimitiveValue> props = new java.util.LinkedHashMap<>();
+
+        for (PropertyDeclaration pd : cs.getCascadedPropertyDeclarations()) {
             String propName = pd.getPropertyName();
             CSSName cssName = CSSName.getByPropertyName(propName);
             props.put(propName, cs.propertyByName(cssName).getValue());
         }
-		
+
         return props;
     }
 
@@ -227,24 +225,21 @@ public class StyleReference {
             infos.add(defaultStylesheet);
         }
 
-        StylesheetInfo[] refs = _nsh.getStylesheets(_doc);
+        StylesheetInfo[] stylesheetInfos = _nsh.getStylesheets(_doc);
         int inlineStyleCount = 0;
-        if (refs != null) {
-            for (StylesheetInfo ref : refs) {
-                String uri;
+        if (stylesheetInfos != null) {
+            for (StylesheetInfo stylesheetInfo : stylesheetInfos) {
+                if (stylesheetInfo.isInline()) {
+                    inlineStyleCount += 1;
+                    stylesheetInfo.setUri(_uac.getBaseURL() + "#inline_style_" + inlineStyleCount);
 
-                if (!ref.isInline()) {
-                    uri = _uac.resolveURI(ref.getUri());
-                    ref.setUri(uri);
+                    Stylesheet sheet = _stylesheetFactory.getStylesheet(stylesheetInfo);
+                    stylesheetInfo.setStylesheet(sheet);
                 } else {
-                    ref.setUri(_uac.getBaseURL() + "#inline_style_" + (++inlineStyleCount));
-                    Stylesheet sheet = _stylesheetFactory.parse(
-                            new StringReader(ref.getContent()), ref);
-                    ref.setStylesheet(sheet);
-                    ref.setUri(null);
+                    stylesheetInfo.setUri(_uac.resolveURI(stylesheetInfo.getUri()));
                 }
             }
-            infos.addAll(Arrays.asList(refs));
+            infos.addAll(Arrays.asList(stylesheetInfos));
         }
 
         // TODO: here we should also get user stylesheet from userAgent
@@ -258,12 +253,12 @@ public class StyleReference {
     public List<FontFaceRule> getFontFaceRules() {
         return _matcher.getFontFaceRules();
     }
-    
+
     public void setUserAgentCallback(UserAgentCallback userAgentCallback) {
         _uac = userAgentCallback;
         _stylesheetFactory.setUserAgentCallback(userAgentCallback);
     }
-    
+
     public void setSupportCMYKColors(boolean b) {
         _stylesheetFactory.setSupportCMYKColors(b);
     }

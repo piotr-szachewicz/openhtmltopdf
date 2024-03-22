@@ -71,15 +71,14 @@ public class CSSParser {
         _errorHandler = errorHandler;
     }
 
-    public Stylesheet parseStylesheet(String uri, int origin, Reader reader)
-            throws IOException {
+    public Stylesheet parseStylesheet(String uri, int origin, Reader reader) throws IOException {
         _URI = uri;
         reset(reader);
 
-        Stylesheet result = new Stylesheet(uri, origin);
-        stylesheet(result);
+        Stylesheet stylesheet = new Stylesheet(uri, origin);
+        stylesheet(stylesheet);
 
-        return result;
+        return stylesheet;
     }
 
     public Ruleset parseDeclaration(int origin, String text) {
@@ -110,8 +109,8 @@ public class CSSParser {
             reset(new StringReader(expr));
             List<PropertyValue> values = expr(
                     cssName == CSSName.FONT_FAMILY ||
-                    cssName == CSSName.FONT_SHORTHAND ||
-                    cssName == CSSName.FS_PDF_FONT_ENCODING);
+                            cssName == CSSName.FONT_SHORTHAND ||
+                            cssName == CSSName.FS_PDF_FONT_ENCODING);
 
             PropertyBuilder builder = CSSName.getPropertyBuilder(cssName);
             List<PropertyDeclaration> props;
@@ -129,7 +128,7 @@ public class CSSParser {
 
             PropertyDeclaration decl = props.get(0);
 
-            return (PropertyValue)decl.getValue();
+            return (PropertyValue) decl.getValue();
         } catch (IOException e) {
             // "Shouldn't" happen
             throw new RuntimeException(e.getMessage(), e);
@@ -139,34 +138,36 @@ public class CSSParser {
         }
     }
 
-//    stylesheet
+    //    stylesheet
 //    : [ CHARSET_SYM S* STRING S* ';' ]?
 //      [S|CDO|CDC]* [ import [S|CDO|CDC]* ]*
 //      [ namespace [S|CDO|CDC]* ]*
 //      [ [ ruleset | media | page | font_face ] [S|CDO|CDC]* ]*
     private void stylesheet(Stylesheet stylesheet) throws IOException {
         //System.out.println("stylesheet()");
-        Token t = la();
+        Token token = nextWithSave();
         try {
-            if (t == Token.TK_CHARSET_SYM) {
+            /* March 2024: https://archive.is/MRe2d
+            "The @charset rule must be the first element in the style sheet and not be preceded by any character" */
+            if (token == Token.TK_CHARSET_SYM) {
                 try {
-                    t = next();
+                    token = next();
                     skip_whitespace();
-                    t = next();
-                    if (t == Token.TK_STRING) {
+                    token = next();
+                    if (token == Token.TK_STRING) {
                         /* String charset = getTokenValue(t); */
 
                         skip_whitespace();
-                        t = next();
-                        if (t != Token.TK_SEMICOLON) {
-                            push(t);
-                            throw new CSSParseException(t, Token.TK_SEMICOLON, getCurrentLine());
+                        token = next();
+                        if (token != Token.TK_SEMICOLON) {
+                            save(token);
+                            throw new CSSParseException(token, Token.TK_SEMICOLON, getCurrentLine());
                         }
 
                         // Do something
                     } else {
-                        push(t);
-                        throw new CSSParseException(t, Token.TK_STRING, getCurrentLine());
+                        save(token);
+                        throw new CSSParseException(token, Token.TK_STRING, getCurrentLine());
                     }
                 } catch (CSSParseException e) {
                     error(e, "@charset rule", true);
@@ -174,30 +175,40 @@ public class CSSParser {
                 }
             }
             skip_whitespace_and_cdocdc();
+
+            /* March 2024: https://archive.ph/tMcxr
+            "An @import rule must be defined at the top of the stylesheet, before any other at-rule (except @charset and @layer) and style declarations, or it will be ignored." */
             while (true) {
-                t = la();
-                if (t == Token.TK_IMPORT_SYM) {
+                token = nextWithSave();
+                /* todo: zach: Add awareness of @layer at-rule https://archive.is/Jy0Jp
+                @layer may appear before @import. If it does, the parser will ignore all @import rules. */
+                if (token == Token.TK_IMPORT_SYM) {
                     import_rule(stylesheet);
                     skip_whitespace_and_cdocdc();
                 } else {
                     break;
                 }
             }
+
+            /* March 2024: https://archive.is/Yreun
+            "Any @namespace rules must follow all @charset and @import rules, and precede all other at-rules and style declarations in a style sheet." */
             while (true) {
-                t = la();
-                if (t == Token.TK_NAMESPACE_SYM) {
+                token = nextWithSave();
+                // todo: zach: ignore @layer here too
+                if (token == Token.TK_NAMESPACE_SYM) {
                     namespace();
                     skip_whitespace_and_cdocdc();
                 } else {
                     break;
                 }
             }
+
             while (true) {
-                t = la();
-                if (t == Token.TK_EOF) {
+                token = nextWithSave();
+                if (token == Token.TK_EOF) {
                     break;
                 }
-                switch (t.getType()) {
+                switch (token.getType()) {
                     case Token.PAGE_SYM:
                         page(stylesheet);
                         break;
@@ -232,13 +243,13 @@ public class CSSParser {
             }
         } catch (CSSParseException e) {
             // "shouldn't" happen
-            if (! e.isCallerNotified()) {
+            if (!e.isCallerNotified()) {
                 error(e, "stylesheet", false);
             }
         }
     }
 
-//  import
+    //  import
 //  : IMPORT_SYM S*
 //    [STRING|URI] S* [ medium [ COMMA S* medium]* ]? ';' S*
 //  ;
@@ -256,27 +267,27 @@ public class CSSParser {
                 switch (t.getType()) {
                     case Token.STRING:
                     case Token.URI:
-                    	String uri = getTokenValue(t);
-                    	String baseUri = stylesheet.getURI();
-                    	
-                    	String resolved = ThreadCtx.get().sharedContext().getUserAgentCallback().resolveUri(baseUri, uri);
-                    	
-                    	if (resolved == null) {
-                    	    XRLog.log(Level.INFO, LogMessageId.LogMessageId1Param.LOAD_URI_RESOLVER_REJECTED_RESOLVING_CSS_IMPORT_AT_URI, uri);
-                    	}
-                    	
-                    	info.setUri(resolved);
+                        String uri = getTokenValue(t);
+                        String baseUri = stylesheet.getURI();
+
+                        String resolved = ThreadCtx.get().sharedContext().getUserAgentCallback().resolveUri(baseUri, uri);
+
+                        if (resolved == null) {
+                            XRLog.log(Level.INFO, LogMessageId.LogMessageId1Param.LOAD_URI_RESOLVER_REJECTED_RESOLVING_CSS_IMPORT_AT_URI, uri);
+                        }
+
+                        info.setUri(resolved);
 
                         skip_whitespace();
-                        t = la();
+                        t = nextWithSave();
                         if (t == Token.TK_IDENT) {
                             info.addMedium(medium());
                             while (true) {
-                                t = la();
+                                t = nextWithSave();
                                 if (t == Token.TK_COMMA) {
                                     next();
                                     skip_whitespace();
-                                    t = la();
+                                    t = nextWithSave();
                                     if (t == Token.TK_IDENT) {
                                         info.addMedium(medium());
                                     } else {
@@ -292,15 +303,15 @@ public class CSSParser {
                         if (t == Token.TK_SEMICOLON) {
                             skip_whitespace();
                         } else {
-                            push(t);
+                            save(t);
                             throw new CSSParseException(
                                     t, Token.TK_SEMICOLON, getCurrentLine());
                         }
                         break;
                     default:
-                        push(t);
+                        save(t);
                         throw new CSSParseException(
-                            t, new Token[] { Token.TK_STRING, Token.TK_URI }, getCurrentLine());
+                                t, new Token[]{Token.TK_STRING, Token.TK_URI}, getCurrentLine());
                 }
 
                 if (info.getMedia().isEmpty()) {
@@ -308,7 +319,7 @@ public class CSSParser {
                 }
                 stylesheet.addImportRule(info);
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(
                         t, Token.TK_IMPORT_SYM, getCurrentLine());
             }
@@ -318,7 +329,7 @@ public class CSSParser {
         }
     }
 
-//  namespace
+    //  namespace
 //  : NAMESPACE_SYM S* [namespace_prefix S*]? [STRING|URI] S* ';' S*
 //  ;
 //  namespace_prefix
@@ -344,7 +355,7 @@ public class CSSParser {
                     url = getTokenValue(t);
                 } else {
                     throw new CSSParseException(
-                            t, new Token[] { Token.TK_STRING, Token.TK_URI }, getCurrentLine());
+                            t, new Token[]{Token.TK_STRING, Token.TK_URI}, getCurrentLine());
                 }
 
                 skip_whitespace();
@@ -367,7 +378,7 @@ public class CSSParser {
         }
     }
 
-//  media
+    //  media
 //  : MEDIA_SYM S* medium [ COMMA S* medium ]* LBRACE S* ruleset* '}' S*
 //  ;
     private void media(Stylesheet stylesheet) throws IOException {
@@ -377,15 +388,15 @@ public class CSSParser {
             if (t == Token.TK_MEDIA_SYM) {
                 MediaRule mediaRule = new MediaRule(stylesheet.getOrigin());
                 skip_whitespace();
-                t = la();
+                t = nextWithSave();
                 if (t == Token.TK_IDENT) {
                     mediaRule.addMedium(medium());
                     while (true) {
-                        t = la();
+                        t = nextWithSave();
                         if (t == Token.TK_COMMA) {
                             next();
                             skip_whitespace();
-                            t = la();
+                            t = nextWithSave();
                             if (t == Token.TK_IDENT) {
                                 mediaRule.addMedium(medium());
                             } else {
@@ -398,23 +409,21 @@ public class CSSParser {
                     t = next();
                     if (t == Token.TK_LBRACE) {
                         skip_whitespace();
-                        LOOP:
                         while (true) {
-                            t = la();
+                            t = nextWithSave();
                             if (t == null) {
                                 break;
                             }
-                            switch (t.getType()) {
-                                case Token.RBRACE:
-                                    next();
-                                    break LOOP;
-                                default:
-                                    ruleset(mediaRule);
+                            if (t.getType() == Token.RBRACE) {
+                                next();
+                                break;
+                            } else {
+                                ruleset(mediaRule);
                             }
                         }
                         skip_whitespace();
                     } else {
-                        push(t);
+                        save(t);
                         throw new CSSParseException(t, Token.TK_LBRACE, getCurrentLine());
                     }
                 } else {
@@ -423,7 +432,7 @@ public class CSSParser {
 
                 stylesheet.addContent(mediaRule);
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_MEDIA_SYM, getCurrentLine());
             }
         } catch (CSSParseException e) {
@@ -432,7 +441,7 @@ public class CSSParser {
         }
     }
 
-//  medium
+    //  medium
 //  : IDENT S*
 //  ;
     private String medium() throws IOException {
@@ -443,13 +452,13 @@ public class CSSParser {
             result = getTokenValue(t);
             skip_whitespace();
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_IDENT, getCurrentLine());
         }
         return result;
     }
 
-//  font_face
+    //  font_face
 //    : FONT_FACE_SYM S*
 //      '{' S* declaration [ ';' S* declaration ]* '}' S*
 //    ;
@@ -469,29 +478,28 @@ public class CSSParser {
                     // Prevent runaway threads with a max loop/counter
                     int maxLoops = 1 * 1024 * 1024; // 1M is too much, 1K is probably too...
                     int i = 0;
-                    LOOP:
                     while (true) {
                         if (++i >= maxLoops)
                             throw new CSSParseException(t, Token.TK_RBRACE, getCurrentLine());
                         skip_whitespace();
-                        t = la();
+                        t = nextWithSave();
                         if (t == Token.TK_RBRACE) {
                             next();
                             skip_whitespace();
-                            break LOOP;
+                            break;
                         } else {
                             declaration_list(ruleset, false, true, true);
                         }
                     }
                 } else {
-                    push(t);
+                    save(t);
                     throw new CSSParseException(t, Token.TK_LBRACE, getCurrentLine());
                 }
 
                 fontFaceRule.addContent(ruleset);
                 stylesheet.addFontFaceRule(fontFaceRule);
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_FONT_FACE_SYM, getCurrentLine());
             }
         } catch (CSSParseException e) {
@@ -500,7 +508,7 @@ public class CSSParser {
         }
     }
 
-//  page :
+    //  page :
 //    PAGE_SYM S* IDENT? pseudo_page? S* 
 //    '{' S* [ declaration | margin ]? [ ';' S* [ declaration | margin ]? ]* '}' S*
 //
@@ -511,7 +519,7 @@ public class CSSParser {
             PageRule pageRule = new PageRule(stylesheet.getOrigin());
             if (t == Token.TK_PAGE_SYM) {
                 skip_whitespace();
-                t = la();
+                t = nextWithSave();
                 if (t == Token.TK_IDENT) {
                     String pageName = getTokenValue(t);
                     if (pageName.equals("auto")) {
@@ -519,7 +527,7 @@ public class CSSParser {
                     }
                     next();
                     pageRule.setName(pageName);
-                    t = la();
+                    t = nextWithSave();
                 }
                 if (t == Token.TK_COLON) {
                     pageRule.setPseudoPage(pseudo_page());
@@ -529,14 +537,13 @@ public class CSSParser {
                 skip_whitespace();
                 t = next();
                 if (t == Token.TK_LBRACE) {
-                    LOOP:
                     while (true) {
                         skip_whitespace();
-                        t = la();
+                        t = nextWithSave();
                         if (t == Token.TK_RBRACE) {
                             next();
                             skip_whitespace();
-                            break LOOP;
+                            break;
                         } else if (t == Token.TK_AT_RULE) {
                             margin(stylesheet, pageRule);
                         } else {
@@ -544,14 +551,14 @@ public class CSSParser {
                         }
                     }
                 } else {
-                    push(t);
+                    save(t);
                     throw new CSSParseException(t, Token.TK_LBRACE, getCurrentLine());
                 }
 
                 pageRule.addContent(ruleset);
                 stylesheet.addContent(pageRule);
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_PAGE_SYM, getCurrentLine());
             }
         } catch (CSSParseException e) {
@@ -560,7 +567,7 @@ public class CSSParser {
         }
     }
 
-//  margin :
+    //  margin :
 //    margin_sym S* '{' declaration [ ';' S* declaration? ]* '}' S*
 //    ;
     private void margin(Stylesheet stylesheet, PageRule pageRule) throws IOException {
@@ -589,7 +596,7 @@ public class CSSParser {
                 declaration_list(ruleset, false, false, false);
                 t = next();
                 if (t != Token.TK_RBRACE) {
-                    push(t);
+                    save(t);
                     throw new CSSParseException(t, Token.TK_RBRACE, getCurrentLine());
                 }
 
@@ -599,7 +606,7 @@ public class CSSParser {
                     pageRule.addMarginBoxProperties(marginBoxName, ruleset.getPropertyDeclarations());
                 }
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_LBRACE, getCurrentLine());
             }
         } catch (CSSParseException e) {
@@ -609,7 +616,7 @@ public class CSSParser {
     }
 
 
-//  pseudo_page
+    //  pseudo_page
 //    : ':' IDENT
 //    ;
     private String pseudo_page() throws IOException {
@@ -620,25 +627,26 @@ public class CSSParser {
             t = next();
             if (t == Token.TK_IDENT) {
                 result = getTokenValue(t);
-                if (! (result.equals("first") || result.equals("left") || result.equals("right"))) {
+                if (!(result.equals("first") || result.equals("left") || result.equals("right"))) {
                     throw new CSSParseException("Pseudo page must be one of first, left, or right", getCurrentLine());
                 }
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_IDENT, getCurrentLine());
             }
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_COLON, getCurrentLine());
         }
         return result;
     }
-//  operator
+
+    //  operator
 //    : '/' S* | COMMA S* | /* empty */
 //    ;
     private void operator() throws IOException {
         //System.out.println("operator()");
-        Token t = la();
+        Token t = nextWithSave();
         switch (t.getType()) {
             case Token.VIRGULE:
             case Token.COMMA:
@@ -648,7 +656,7 @@ public class CSSParser {
         }
     }
 
-//  combinator
+    //  combinator
 //    : PLUS S*
 //    | GREATER S*
 //    | S
@@ -659,25 +667,25 @@ public class CSSParser {
         if (t == Token.TK_PLUS || t == Token.TK_GREATER) {
             skip_whitespace();
         } else if (t != Token.TK_S) {
-            push(t);
+            save(t);
             throw new CSSParseException(
                     t,
-                    new Token[] { Token.TK_PLUS, Token.TK_GREATER, Token.TK_S },
+                    new Token[]{Token.TK_PLUS, Token.TK_GREATER, Token.TK_S},
                     getCurrentLine());
         }
         return t;
     }
 
-//  unary_operator
+    //  unary_operator
 //    : '-' | PLUS
 //    ;
     private int unary_operator() throws IOException {
         //System.out.println("unary_operator()");
         Token t = next();
-        if (! (t == Token.TK_MINUS || t == Token.TK_PLUS)) {
-            push(t);
+        if (!(t == Token.TK_MINUS || t == Token.TK_PLUS)) {
+            save(t);
             throw new CSSParseException(
-                    t, new Token[] { Token.TK_MINUS, Token.TK_PLUS}, getCurrentLine());
+                    t, new Token[]{Token.TK_MINUS, Token.TK_PLUS}, getCurrentLine());
         }
         if (t == Token.TK_MINUS) {
             return -1;
@@ -686,7 +694,7 @@ public class CSSParser {
         }
     }
 
-//  property
+    //  property
 //    : IDENT S*
 //    ;
     private String property() throws IOException {
@@ -697,7 +705,7 @@ public class CSSParser {
             result = getTokenValue(t);
             skip_whitespace();
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(
                     t, Token.TK_IDENT, getCurrentLine());
         }
@@ -705,7 +713,7 @@ public class CSSParser {
         return result;
     }
 
-//  declaration_list
+    //  declaration_list
 //    : [ declaration ';' S* ]*
     private void declaration_list(
             Ruleset ruleset, boolean expectEOF, boolean expectAtRule, boolean inFontFace) throws IOException {
@@ -713,7 +721,7 @@ public class CSSParser {
         Token t;
         LOOP:
         while (true) {
-            t = la();
+            t = nextWithSave();
             switch (t.getType()) {
                 case Token.SEMICOLON:
                     next();
@@ -739,7 +747,7 @@ public class CSSParser {
         }
     }
 
-//  ruleset
+    //  ruleset
 //    : selector [ COMMA S* selector ]*
 //      LBRACE S* [ declaration ';' S* ]* '}' S*
 //    ;
@@ -751,7 +759,7 @@ public class CSSParser {
             selector(ruleset);
             Token t;
             while (true) {
-                t = la();
+                t = nextWithSave();
                 if (t == Token.TK_COMMA) {
                     next();
                     skip_whitespace();
@@ -768,17 +776,17 @@ public class CSSParser {
                 if (t == Token.TK_RBRACE) {
                     skip_whitespace();
                 } else {
-                    push(t);
+                    save(t);
                     throw new CSSParseException(t, Token.TK_RBRACE, getCurrentLine());
                 }
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(
-                        t, new Token[] { Token.TK_COMMA, Token.TK_LBRACE }, getCurrentLine());
+                        t, new Token[]{Token.TK_COMMA, Token.TK_LBRACE}, getCurrentLine());
             }
 
             if (!ruleset.getPropertyDeclarations().isEmpty() ||
-                !ruleset.getInvalidPropertyDeclarations().isEmpty()) {
+                    !ruleset.getInvalidPropertyDeclarations().isEmpty()) {
                 container.addContent(ruleset);
             }
         } catch (CSSParseException e) {
@@ -787,7 +795,7 @@ public class CSSParser {
         }
     }
 
-//  selector
+    //  selector
 //    : simple_selector [ combinator simple_selector ]*
 //    ;
     private void selector(Ruleset ruleset) throws IOException {
@@ -797,13 +805,13 @@ public class CSSParser {
         selectors.add(simple_selector(ruleset));
         LOOP:
         while (true) {
-            Token t = la();
+            Token t = nextWithSave();
             switch (t.getType()) {
                 case Token.PLUS:
                 case Token.GREATER:
                 case Token.S:
                     combinators.add(combinator());
-                    t = la();
+                    t = nextWithSave();
                     switch (t.getType()) {
                         case Token.IDENT:
                         case Token.ASTERISK:
@@ -814,9 +822,9 @@ public class CSSParser {
                             selectors.add(simple_selector(ruleset));
                             break;
                         default:
-                            throw new CSSParseException(t, new Token[] { Token.TK_IDENT,
+                            throw new CSSParseException(t, new Token[]{Token.TK_IDENT,
                                     Token.TK_ASTERISK, Token.TK_HASH, Token.TK_PERIOD,
-                                    Token.TK_LBRACKET, Token.TK_COLON }, getCurrentLine());
+                                    Token.TK_LBRACKET, Token.TK_COLON}, getCurrentLine());
                     }
                     break;
                 default:
@@ -842,7 +850,7 @@ public class CSSParser {
             if (first.getPseudoElement() != null) {
                 throw new CSSParseException(
                         "A simple selector with a pseudo element cannot be " +
-                        "combined with another simple selector", getCurrentLine());
+                                "combined with another simple selector", getCurrentLine());
             }
 
             boolean sibling = false;
@@ -861,7 +869,7 @@ public class CSSParser {
             second.setSpecificityC(second.getSpecificityC() + first.getSpecificityC());
             second.setSpecificityD(second.getSpecificityD() + first.getSpecificityD());
 
-            if (! sibling) {
+            if (!sibling) {
                 if (result == null) {
                     result = first;
                 }
@@ -873,7 +881,7 @@ public class CSSParser {
                     result = second;
                 }
                 if (i > 0) {
-                    for (int j = i-1; j >= 0; j--) {
+                    for (int j = i - 1; j >= 0; j--) {
                         Selector selector = selectors.get(j);
                         if (selector.getChainedSelector() == first) {
                             selector.setChainedSelector(second);
@@ -888,7 +896,7 @@ public class CSSParser {
         return result;
     }
 
-//  simple_selector
+    //  simple_selector
 //    : typed_value [ HASH | class | attrib | pseudo ]*
 //    | [ HASH | class | attrib | pseudo ]+
 //    ;
@@ -896,7 +904,7 @@ public class CSSParser {
         //System.out.println("simple_selector()");
         Selector selector = new Selector();
         selector.setParent(ruleset);
-        Token t = la();
+        Token t = nextWithSave();
         switch (t.getType()) {
             case Token.ASTERISK:
             case Token.IDENT:
@@ -905,8 +913,9 @@ public class CSSParser {
                 selector.setNamespaceURI(pair.getNamespaceURI());
                 selector.setName(pair.getName());
 
-                LOOP: while (true) {
-                    t = la();
+                LOOP:
+                while (true) {
+                    t = nextWithSave();
                     switch (t.getType()) {
                         case Token.HASH:
                             t = next();
@@ -928,8 +937,9 @@ public class CSSParser {
                 break;
             default:
                 boolean found = false;
-                LOOP: while (true) {
-                    t = la();
+                LOOP:
+                while (true) {
+                    t = nextWithSave();
                     switch (t.getType()) {
                         case Token.HASH:
                             t = next();
@@ -950,8 +960,8 @@ public class CSSParser {
                             break;
                         default:
                             if (!found) {
-                                throw new CSSParseException(t, new Token[] { Token.TK_HASH,
-                                        Token.TK_PERIOD, Token.TK_LBRACKET, Token.TK_COLON },
+                                throw new CSSParseException(t, new Token[]{Token.TK_HASH,
+                                        Token.TK_PERIOD, Token.TK_LBRACKET, Token.TK_COLON},
                                         getCurrentLine());
                             }
                             break LOOP;
@@ -961,7 +971,7 @@ public class CSSParser {
         return selector;
     }
 
-//    type_selector
+    //    type_selector
 //    : [ namespace_prefix ]? element_name | IDENT
 //    ;
 //    namespace_prefix
@@ -971,18 +981,18 @@ public class CSSParser {
         String prefix = null;
         String name = null;
 
-        Token t = la();
+        Token t = nextWithSave();
         if (t == Token.TK_ASTERISK || t == Token.TK_IDENT) {
             next();
             if (t == Token.TK_IDENT) {
                 name = getTokenValue(t, true);
             }
-            t = la();
+            t = nextWithSave();
         } else if (t == Token.TK_VERTICAL_BAR) {
             prefix = TreeResolver.NO_NAMESPACE;
         } else {
             throw new CSSParseException(
-                    t, new Token[] { Token.TK_ASTERISK, Token.TK_IDENT, Token.TK_VERTICAL_BAR },
+                    t, new Token[]{Token.TK_ASTERISK, Token.TK_IDENT, Token.TK_VERTICAL_BAR},
                     getCurrentLine());
         }
 
@@ -998,7 +1008,7 @@ public class CSSParser {
                 }
             } else {
                 throw new CSSParseException(
-                        t, new Token[] { Token.TK_ASTERISK, Token.TK_IDENT }, getCurrentLine());
+                        t, new Token[]{Token.TK_ASTERISK, Token.TK_IDENT}, getCurrentLine());
             }
         }
 
@@ -1009,7 +1019,7 @@ public class CSSParser {
                 throw new CSSParseException("There is no namespace with prefix " + prefix + " defined",
                         getCurrentLine());
             }
-        } else if (prefix == null && ! matchAttribute) {
+        } else if (prefix == null && !matchAttribute) {
             namespaceURI = _namespaces.get(null);
         }
 
@@ -1020,7 +1030,7 @@ public class CSSParser {
         return new NamespacePair(namespaceURI, name);
     }
 
-//  class
+    //  class
 //    : '.' IDENT
 //    ;
     private void class_selector(Selector selector) throws IOException {
@@ -1031,11 +1041,11 @@ public class CSSParser {
             if (t == Token.TK_IDENT) {
                 selector.addClassCondition(getTokenValue(t, true));
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_IDENT, getCurrentLine());
             }
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_PERIOD, getCurrentLine());
         }
     }
@@ -1057,7 +1067,7 @@ public class CSSParser {
     }
     */
 
-//    attrib
+    //    attrib
 //    : '[' S* [ namespace_prefix ]? IDENT S*
 //          [ [ PREFIXMATCH |
 //              SUFFIXMATCH |
@@ -1072,14 +1082,14 @@ public class CSSParser {
         Token t = next();
         if (t == Token.TK_LBRACKET) {
             skip_whitespace();
-            t = la();
+            t = nextWithSave();
             if (t == Token.TK_IDENT || t == Token.TK_ASTERISK || t == Token.TK_VERTICAL_BAR) {
                 boolean existenceMatch = true;
                 NamespacePair pair = typed_value(true);
                 String attrNamespaceURI = pair.getNamespaceURI();
                 String attrName = pair.getName();
                 skip_whitespace();
-                t = la();
+                t = nextWithSave();
                 switch (t.getType()) {
                     case Token.EQUALS:
                     case Token.INCLUDES:
@@ -1115,13 +1125,13 @@ public class CSSParser {
                             }
                             skip_whitespace();
                         } else {
-                            push(t);
+                            save(t);
                             throw new CSSParseException(t,
-                                    new Token[] { Token.TK_IDENT, Token.TK_STRING },
+                                    new Token[]{Token.TK_IDENT, Token.TK_STRING},
                                     getCurrentLine());
                         }
                         skip_whitespace();
-                        t = la();
+                        t = nextWithSave();
                         break;
                 }
                 if (existenceMatch) {
@@ -1130,17 +1140,17 @@ public class CSSParser {
                 if (t == Token.TK_RBRACKET) {
                     next();
                 } else {
-                    throw new CSSParseException(t, new Token[] { Token.TK_EQUALS,
+                    throw new CSSParseException(t, new Token[]{Token.TK_EQUALS,
                             Token.TK_INCLUDES, Token.TK_DASHMATCH, Token.TK_PREFIXMATCH,
-                            Token.TK_SUFFIXMATCH, Token.TK_SUBSTRINGMATCH, Token.TK_RBRACKET },
+                            Token.TK_SUFFIXMATCH, Token.TK_SUBSTRINGMATCH, Token.TK_RBRACKET},
                             getCurrentLine());
                 }
             } else {
                 throw new CSSParseException(
-                        t, new Token[] { Token.TK_IDENT, Token.TK_ASTERISK }, getCurrentLine());
+                        t, new Token[]{Token.TK_IDENT, Token.TK_ASTERISK}, getCurrentLine());
             }
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_LBRACKET, getCurrentLine());
         }
     }
@@ -1165,7 +1175,7 @@ public class CSSParser {
             selector.addOddChildCondition();
         } else if (value.equals("last-child")) {
             selector.addLastChildCondition();
-        } else if (CSS21_PSEUDO_ELEMENTS.contains(value)){
+        } else if (CSS21_PSEUDO_ELEMENTS.contains(value)) {
             selector.setPseudoElement(value);
         } else {
             throw new CSSParseException(value + " is not a recognized pseudo-class", getCurrentLine());
@@ -1174,7 +1184,7 @@ public class CSSParser {
 
     private void addPseudoClassOrElementFunction(Token t, Selector selector) throws IOException {
         String f = getTokenValue(t);
-        f = f.substring(0, f.length()-1);
+        f = f.substring(0, f.length() - 1);
 
         if (f.equals("lang")) {
             skip_whitespace();
@@ -1185,7 +1195,7 @@ public class CSSParser {
                 skip_whitespace();
                 t = next();
             } else {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_IDENT, getCurrentLine());
             }
         } else if (f.equals("nth-child")) {
@@ -1198,16 +1208,16 @@ public class CSSParser {
                 selector.addNthChildCondition(number.toString());
             } catch (CSSParseException e) {
                 e.setLine(getCurrentLine());
-                push(t);
+                save(t);
                 throw e;
             }
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(f + " is not a valid function in this context", getCurrentLine());
         }
 
         if (t != Token.TK_RPAREN) {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_RPAREN, getCurrentLine());
         }
     }
@@ -1221,7 +1231,7 @@ public class CSSParser {
         }
     }
 
-//  pseudo
+    //  pseudo
 //    : ':' ':'? [ IDENT | FUNCTION S* IDENT? S* ')' ]
 //    ;
     private void pseudo(Selector selector) throws IOException {
@@ -1241,12 +1251,12 @@ public class CSSParser {
                     addPseudoClassOrElementFunction(t, selector);
                     break;
                 default:
-                    push(t);
+                    save(t);
                     throw new CSSParseException(t,
-                            new Token[] { Token.TK_IDENT, Token.TK_FUNCTION }, getCurrentLine());
+                            new Token[]{Token.TK_IDENT, Token.TK_FUNCTION}, getCurrentLine());
             }
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_COLON, getCurrentLine());
         }
     }
@@ -1255,18 +1265,18 @@ public class CSSParser {
         if (cssName == null) {
             if (!SVGProperty.properties().contains(propertyName)) {
                 _errorHandler.error(
-                    _URI,
-                    propertyName + " is an unrecognized CSS property at line "
-                        + getCurrentLine() + ". Ignoring declaration.");
+                        _URI,
+                        propertyName + " is an unrecognized CSS property at line "
+                                + getCurrentLine() + ". Ignoring declaration.");
             }
             return false;
         }
 
-        if (! CSSName.isImplemented(cssName)) {
+        if (!CSSName.isImplemented(cssName)) {
             _errorHandler.error(
                     _URI,
                     propertyName + " is not implemented at line "
-                        + getCurrentLine() + ". Ignoring declaration.");
+                            + getCurrentLine() + ". Ignoring declaration.");
             return false;
         }
 
@@ -1275,20 +1285,20 @@ public class CSSParser {
             _errorHandler.error(
                     _URI,
                     "(bug) No property builder defined for " + propertyName
-                        + " at line " + getCurrentLine() + ". Ignoring declaration.");
+                            + " at line " + getCurrentLine() + ". Ignoring declaration.");
             return false;
         }
 
         return true;
     }
 
-//  declaration
+    //  declaration
 //    : property ':' S* expr prio?
 //    ;
     private void declaration(Ruleset ruleset, boolean inFontFace) throws IOException {
         //System.out.println("declaration()");
         try {
-            Token t = la();
+            Token t = nextWithSave();
             if (t == Token.TK_IDENT) {
                 String propertyName = property();
                 CSSName cssName = CSSName.getByPropertyName(propertyName);
@@ -1301,21 +1311,22 @@ public class CSSParser {
 
                     List<PropertyValue> values = expr(
                             cssName == CSSName.FONT_FAMILY ||
-                            cssName == CSSName.FONT_SHORTHAND ||
-                            cssName == CSSName.FS_PDF_FONT_ENCODING);
+                                    cssName == CSSName.FONT_SHORTHAND ||
+                                    cssName == CSSName.FS_PDF_FONT_ENCODING);
                     boolean important = false;
 
-                    t = la();
+                    t = nextWithSave();
                     if (t == Token.TK_IMPORTANT_SYM) {
-                        prio();
+                        next();
+                        skip_whitespace();
                         important = true;
                     }
 
-                    t = la();
-                    if (! (t == Token.TK_SEMICOLON || t == Token.TK_RBRACE || t == Token.TK_EOF)) {
+                    t = nextWithSave();
+                    if (!(t == Token.TK_SEMICOLON || t == Token.TK_RBRACE || t == Token.TK_EOF)) {
                         throw new CSSParseException(
                                 t,
-                                new Token[] { Token.TK_SEMICOLON, Token.TK_RBRACE },
+                                new Token[]{Token.TK_SEMICOLON, Token.TK_RBRACE},
                                 getCurrentLine());
                     }
 
@@ -1331,12 +1342,12 @@ public class CSSParser {
                     } else {
                         // We need to keep invalid properties in case they are used by SVG, etc.
                         ruleset.addInvalidProperty(
-                           new InvalidPropertyDeclaration(
-                                propertyName, values, ruleset.getOrigin(), important,
-                                ruleset.getPropertyDeclarations().size() + ruleset.getInvalidPropertyDeclarations().size()));
+                                new InvalidPropertyDeclaration(
+                                        propertyName, values, ruleset.getOrigin(), important,
+                                        ruleset.getPropertyDeclarations().size() + ruleset.getInvalidPropertyDeclarations().size()));
                     }
                 } else {
-                    push(t);
+                    save(t);
                     throw new CSSParseException(t, Token.TK_COLON, getCurrentLine());
                 }
             } else {
@@ -1348,29 +1359,16 @@ public class CSSParser {
         }
     }
 
-//  prio
-//    : IMPORTANT_SYM S*
-//    ;
-    private void prio() throws IOException {
-        //System.out.println("prio()");
-        Token t = next();
-        if (t == Token.TK_IMPORTANT_SYM) {
-            skip_whitespace();
-        } else {
-            push(t);
-            throw new CSSParseException(t, Token.TK_IMPORTANT_SYM, getCurrentLine());
-        }
-    }
-
-//  expr
+    //  expr
 //    : term [ operator term ]*
 //    ;
     private List<PropertyValue> expr(boolean literal) throws IOException {
         //System.out.println("expr()");
         List<PropertyValue> result = new ArrayList<>(10);
         result.add(term(literal));
-        LOOP: while (true) {
-            Token t = la();
+        LOOP:
+        while (true) {
+            Token t = nextWithSave();
             boolean operator = false;
             Token operatorToken = null;
             switch (t.getType()) {
@@ -1378,7 +1376,7 @@ public class CSSParser {
                 case Token.COMMA:
                     operatorToken = t;
                     operator();
-                    t = la();
+                    t = nextWithSave();
                     operator = true;
                     break;
             }
@@ -1412,12 +1410,12 @@ public class CSSParser {
                     break;
                 default:
                     if (operator) {
-                        throw new CSSParseException(t, new Token[] {
+                        throw new CSSParseException(t, new Token[]{
                                 Token.TK_NUMBER, Token.TK_PLUS, Token.TK_MINUS,
                                 Token.TK_PERCENTAGE, Token.TK_PX, Token.TK_EMS, Token.TK_EXS,
                                 Token.TK_PC, Token.TK_MM, Token.TK_CM, Token.TK_IN, Token.TK_PT,
                                 Token.TK_ANGLE, Token.TK_TIME, Token.TK_FREQ, Token.TK_STRING,
-                                Token.TK_IDENT, Token.TK_URI, Token.TK_HASH, Token.TK_FUNCTION },
+                                Token.TK_IDENT, Token.TK_URI, Token.TK_HASH, Token.TK_FUNCTION},
                                 getCurrentLine());
                     } else {
                         break LOOP;
@@ -1464,7 +1462,7 @@ public class CSSParser {
         return sign == -1.0f ? "-" : "";
     }
 
-//  term
+    //  term
 //    : unary_operator?
 //      [ NUMBER S* | PERCENTAGE S* | LENGTH S* | EMS S* | EXS S* | ANGLE S* |
 //        TIME S* | FREQ S* ]
@@ -1473,10 +1471,10 @@ public class CSSParser {
     private PropertyValue term(boolean literal) throws IOException {
         //System.out.println("term()");
         float sign = 1;
-        Token t = la();
+        Token t = nextWithSave();
         if (t == Token.TK_PLUS || t == Token.TK_MINUS) {
             sign = unary_operator();
-            t = la();
+            t = nextWithSave();
         }
         PropertyValue result = null;
         switch (t.getType()) {
@@ -1487,9 +1485,9 @@ public class CSSParser {
 
                 if ("rem".equals(unitType)) {
                     result = new PropertyValue(
-                          CSSPrimitiveValue.CSS_REMS,
-                          sign*Float.parseFloat(extractNumber(t)),
-                          sign(sign) + getTokenValue(t));
+                            CSSPrimitiveValue.CSS_REMS,
+                            sign * Float.parseFloat(extractNumber(t)),
+                            sign(sign) + getTokenValue(t));
                     next();
                     skip_whitespace();
                 } else {
@@ -1499,25 +1497,25 @@ public class CSSParser {
             case Token.NUMBER:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_NUMBER,
-                        sign*Float.parseFloat(getTokenValue(t)),
+                        sign * Float.parseFloat(getTokenValue(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
                 break;
             case Token.ANGLE:
-            	String unit = extractUnit(t);
-            	short type = CSSPrimitiveValue.CSS_UNKNOWN;
+                String unit = extractUnit(t);
+                short type = CSSPrimitiveValue.CSS_UNKNOWN;
 
-            	if ("deg".equals(unit))
-            		type = CSSPrimitiveValue.CSS_DEG;
-            	else if ("rad".equals(unit))
-            		type = CSSPrimitiveValue.CSS_RAD;
-            	else if ("grad".equals(unit))
-            		type = CSSPrimitiveValue.CSS_GRAD;
-            	
+                if ("deg".equals(unit))
+                    type = CSSPrimitiveValue.CSS_DEG;
+                else if ("rad".equals(unit))
+                    type = CSSPrimitiveValue.CSS_RAD;
+                else if ("grad".equals(unit))
+                    type = CSSPrimitiveValue.CSS_GRAD;
+
                 result = new PropertyValue(
                         type,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1525,7 +1523,7 @@ public class CSSParser {
             case Token.PERCENTAGE:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_PERCENTAGE,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1533,7 +1531,7 @@ public class CSSParser {
             case Token.EMS:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_EMS,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1541,7 +1539,7 @@ public class CSSParser {
             case Token.EXS:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_EXS,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1549,7 +1547,7 @@ public class CSSParser {
             case Token.PX:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_PX,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1557,7 +1555,7 @@ public class CSSParser {
             case Token.CM:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_CM,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1565,7 +1563,7 @@ public class CSSParser {
             case Token.MM:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_MM,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1573,7 +1571,7 @@ public class CSSParser {
             case Token.IN:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_IN,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1581,7 +1579,7 @@ public class CSSParser {
             case Token.PT:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_PT,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1589,7 +1587,7 @@ public class CSSParser {
             case Token.PC:
                 result = new PropertyValue(
                         CSSPrimitiveValue.CSS_PC,
-                        sign*Float.parseFloat(extractNumber(t)),
+                        sign * Float.parseFloat(extractNumber(t)),
                         sign(sign) + getTokenValue(t));
                 next();
                 skip_whitespace();
@@ -1627,17 +1625,17 @@ public class CSSParser {
                 result = function();
                 break;
             default:
-                throw new CSSParseException(t, new Token[] { Token.TK_NUMBER,
+                throw new CSSParseException(t, new Token[]{Token.TK_NUMBER,
                         Token.TK_PERCENTAGE, Token.TK_PX, Token.TK_EMS, Token.TK_EXS,
                         Token.TK_PC, Token.TK_MM, Token.TK_CM, Token.TK_IN, Token.TK_PT,
                         Token.TK_ANGLE, Token.TK_TIME, Token.TK_FREQ, Token.TK_STRING,
-                        Token.TK_IDENT, Token.TK_URI, Token.TK_HASH, Token.TK_FUNCTION },
+                        Token.TK_IDENT, Token.TK_URI, Token.TK_HASH, Token.TK_FUNCTION},
                         getCurrentLine());
         }
         return result;
     }
 
-//  function
+    //  function
 //    : FUNCTION S* expr ')' S*
 //    ;
     private PropertyValue function() throws IOException {
@@ -1650,26 +1648,26 @@ public class CSSParser {
             List<PropertyValue> params = expr(false);
             t = next();
             if (t != Token.TK_RPAREN) {
-                push(t);
+                save(t);
                 throw new CSSParseException(t, Token.TK_RPAREN, getCurrentLine());
             }
 
             if (f.equals("rgb(")) {
                 result = new PropertyValue(createRGBColorFromFunction(params));
             } else if (f.equals("cmyk(")) {
-                if (! isSupportCMYKColors()) {
+                if (!isSupportCMYKColors()) {
                     throw new CSSParseException(
                             "The current output device does not support CMYK colors", getCurrentLine());
                 }
                 //in accordance to http://www.w3.org/TR/css3-gcpm/#cmyk-colors
                 result = new PropertyValue(createCMYKColorFromFunction(params));
             } else {
-                result = new PropertyValue(new FSFunction(f.substring(0, f.length()-1), params));
+                result = new PropertyValue(new FSFunction(f.substring(0, f.length() - 1), params));
             }
 
             skip_whitespace();
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_FUNCTION, getCurrentLine());
         }
 
@@ -1686,7 +1684,7 @@ public class CSSParser {
         float[] colorComponents = new float[4];
 
         for (int i = 0; i < params.size(); i++) {
-            colorComponents[i] = parseCMYKColorComponent(params.get(i), (i+1)); //Warning on the truncation?
+            colorComponents[i] = parseCMYKColorComponent(params.get(i), (i + 1)); //Warning on the truncation?
         }
 
         return new FSCMYKColor(colorComponents[0], colorComponents[1], colorComponents[2], colorComponents[3]);
@@ -1703,7 +1701,7 @@ public class CSSParser {
         } else {
             throw new CSSParseException(
                     "Parameter " + paramNo + " to the cmyk() function is " +
-                    "not a number or a percentage", getCurrentLine());
+                            "not a number or a percentage", getCurrentLine());
         }
 
         if (result < 0.0f || result > 1.0f) {
@@ -1730,13 +1728,13 @@ public class CSSParser {
             if (type != CSSPrimitiveValue.CSS_PERCENTAGE &&
                     type != CSSPrimitiveValue.CSS_NUMBER) {
                 throw new CSSParseException(
-                        "Parameter " + (i+1) + " to the rgb() function is " +
-                        "not a number or percentage", getCurrentLine());
+                        "Parameter " + (i + 1) + " to the rgb() function is " +
+                                "not a number or percentage", getCurrentLine());
             }
 
             float f = value.getFloatValue();
             if (type == CSSPrimitiveValue.CSS_PERCENTAGE) {
-                f = f/100 * 255;
+                f = f / 100 * 255;
             }
             if (f < 0) {
                 f = 0;
@@ -1746,13 +1744,13 @@ public class CSSParser {
 
             switch (i) {
                 case 0:
-                    red = (int)f;
+                    red = (int) f;
                     break;
                 case 1:
-                    green = (int)f;
+                    green = (int) f;
                     break;
                 case 2:
-                    blue = (int)f;
+                    blue = (int) f;
                     break;
             }
         }
@@ -1760,7 +1758,7 @@ public class CSSParser {
         return new FSRGBColor(red, green, blue);
     }
 
-//  /*
+    //  /*
 //  * There is a constraint on the color that it must
 //  * have either 3 or 6 hex-digits (i.e., [0-9a-fA-F])
 //  * after the "#"; e.g., "#000" is OK, but "#abcd" is not.
@@ -1774,16 +1772,16 @@ public class CSSParser {
         Token t = next();
         if (t == Token.TK_HASH) {
             String s = getTokenValue(t);
-            if ((s.length() != 3 && s.length() != 6) || ! isHexString(s)) {
-                push(t);
+            if ((s.length() != 3 && s.length() != 6) || !isHexString(s)) {
+                save(t);
                 throw new CSSParseException('#' + s + " is not a valid color definition", getCurrentLine());
             }
             FSRGBColor color = null;
             if (s.length() == 3) {
                 color = new FSRGBColor(
-                            convertToInteger(s.charAt(0), s.charAt(0)),
-                            convertToInteger(s.charAt(1), s.charAt(1)),
-                            convertToInteger(s.charAt(2), s.charAt(2)));
+                        convertToInteger(s.charAt(0), s.charAt(0)),
+                        convertToInteger(s.charAt(1), s.charAt(1)),
+                        convertToInteger(s.charAt(2), s.charAt(2)));
             } else { /* s.length == 6 */
                 color = new FSRGBColor(
                         convertToInteger(s.charAt(0), s.charAt(1)),
@@ -1793,7 +1791,7 @@ public class CSSParser {
             result = new PropertyValue(color);
             skip_whitespace();
         } else {
-            push(t);
+            save(t);
             throw new CSSParseException(t, Token.TK_HASH, getCurrentLine());
         }
 
@@ -1802,7 +1800,7 @@ public class CSSParser {
 
     private boolean isHexString(String s) {
         for (int i = 0; i < s.length(); i++) {
-            if (! isHexChar(s.charAt(i))) {
+            if (!isHexChar(s.charAt(i))) {
                 return false;
             }
         }
@@ -1828,21 +1826,21 @@ public class CSSParser {
 
     private void skip_whitespace() throws IOException {
         Token t;
-        while ( (t = next()) == Token.TK_S) {
+        while ((t = next()) == Token.TK_S) {
             // skip
         }
-        push(t);
+        save(t);
     }
 
     private void skip_whitespace_and_cdocdc() throws IOException {
         Token t;
         while (true) {
             t = next();
-            if (! (t == Token.TK_S || t == Token.TK_CDO || t == Token.TK_CDC)) {
+            if (!(t == Token.TK_S || t == Token.TK_CDO || t == Token.TK_CDC)) {
                 break;
             }
         }
-        push(t);
+        save(t);
     }
 
     private Token next() throws IOException {
@@ -1855,21 +1853,21 @@ public class CSSParser {
         }
     }
 
-    private void push(Token t) {
+    private void save(Token t) {
         if (_saved != null) {
             throw new RuntimeException("saved must be null");
         }
         _saved = t;
     }
 
-    private Token la() throws IOException {
+    private Token nextWithSave() throws IOException {
         Token result = next();
-        push(result);
+        save(result);
         return result;
     }
 
     private void error(CSSParseException e, String what, boolean rethrowEOF) {
-        if (! e.isCallerNotified()) {
+        if (!e.isCallerNotified()) {
             String message = e.getMessage() + " Skipping " + what + ".";
             _errorHandler.error(_URI, message);
         }
@@ -1894,9 +1892,9 @@ public class CSSParser {
                     braces++;
                     break;
                 case Token.RBRACE:
-                    if (braces == 0) {
+                    if (braces == 0) { // todo: zach: is this condition satisfiable?
                         if (stopBeforeBlockClose) {
-                            push(t);
+                            save(t);
                             break LOOP;
                         }
                     } else {
@@ -1907,7 +1905,7 @@ public class CSSParser {
                     }
                     break;
                 case Token.SEMICOLON:
-                    if (braces == 0 && ((! needBlock) || foundBlock)) {
+                    if (braces == 0 && ((!needBlock) || foundBlock)) {
                         break LOOP;
                     }
                     break;
@@ -1945,7 +1943,7 @@ public class CSSParser {
         switch (t.getType()) {
             case Token.STRING:
                 count = _lexer.yylength();
-                return processEscapes(_lexer.yytext().toCharArray(), 1, count-1);
+                return processEscapes(_lexer.yytext().toCharArray(), 1, count - 1);
             case Token.HASH:
                 count = _lexer.yylength();
                 return processEscapes(_lexer.yytext().toCharArray(), 1, count);
@@ -1959,7 +1957,7 @@ public class CSSParser {
                 if (ch[start] == '\'' || ch[start] == '"') {
                     start++;
                 }
-                int end = ch.length-2;
+                int end = ch.length - 2;
                 while (ch[end] == '\t' || ch[end] == '\r' ||
                         ch[end] == '\n' || ch[end] == '\f') {
                     end--;
@@ -1968,24 +1966,21 @@ public class CSSParser {
                     end--;
                 }
 
-                String uriResult = processEscapes(ch, start, end+1);
+                String uriResult = processEscapes(ch, start, end + 1);
                 String uriResolved = ThreadCtx.get().sharedContext().getUserAgentCallback().resolveUri(_URI, uriResult);
 
                 if (uriResolved == null) {
                     XRLog.log(Level.INFO, LogMessageId.LogMessageId1Param.LOAD_URI_RESOLVER_REJECTED_RESOLVING_URI_AT_URI_IN_CSS_STYLESHEET, uriResult);
                 }
-                
+
                 return uriResolved == null ? "" : uriResolved;
             case Token.AT_RULE:
             case Token.IDENT:
             case Token.FUNCTION:
-                start = 0;
+                start = t.getType() == Token.AT_RULE ? 1 : 0;
                 count = _lexer.yylength();
-                if (t.getType() == Token.AT_RULE) {
-                    start++;
-                }
                 String result = processEscapes(_lexer.yytext().toCharArray(), start, count);
-                if (! literal) {
+                if (!literal) {
                     result = result.toLowerCase();
                 }
                 return result;
@@ -2010,18 +2005,18 @@ public class CSSParser {
 
             if (c == '\\') {
                 // eat escaped newlines and handle te\st == test situations
-                if (i < end - 2 && (ch[i+1] == '\r' && ch[i+2] == '\n')) {
+                if (i < end - 2 && (ch[i + 1] == '\r' && ch[i + 2] == '\n')) {
                     i += 2;
                     continue;
                 } else {
-                    if ((i+1) < ch.length && (ch[i+1] == '\n' || ch[i+1] == '\r' || ch[i+1] == '\f')) {
+                    if ((i + 1) < ch.length && (ch[i + 1] == '\n' || ch[i + 1] == '\r' || ch[i + 1] == '\f')) {
                         i++;
                         continue;
-                    } else if ((i+1) >= ch.length) {
-                       // process \ escaped (\\)
-                       result.append(c);
-                       continue;
-                    } else if (! isHexChar(ch[i+1])) {
+                    } else if ((i + 1) >= ch.length) {
+                        // process \ escaped (\\)
+                        result.append(c);
+                        continue;
+                    } else if (!isHexChar(ch[i + 1])) {
                         continue;
                     }
                 }
@@ -2034,17 +2029,17 @@ public class CSSParser {
 
                 int cvalue = Integer.parseInt(new String(ch, current, i - current), 16);
                 if (cvalue < 0xFFFF) {
-                    result.append((char)cvalue);
+                    result.append((char) cvalue);
                 }
 
                 i--;
 
-                if (i < end - 2 && (ch[i+1] == '\r' && ch[i+2] == '\n')) {
+                if (i < end - 2 && (ch[i + 1] == '\r' && ch[i + 2] == '\n')) {
                     i += 2;
                 } else if (i < end - 1 &&
-                        (ch[i+1] == ' ' || ch[i+1] == '\t' ||
-                                ch[i+1] == '\n' || ch[i+1] == '\r' ||
-                                ch[i+1] == '\f')) {
+                        (ch[i + 1] == ' ' || ch[i + 1] == '\t' ||
+                                ch[i + 1] == '\n' || ch[i + 1] == '\r' ||
+                                ch[i + 1] == '\f')) {
                     i++;
                 }
             } else {
