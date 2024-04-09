@@ -205,8 +205,9 @@
       <plugin>
         <artifactId>maven-release-plugin</artifactId>
         <configuration>
-          <releaseProfiles>release</releaseProfiles>
+          <releaseProfiles>maven-release</releaseProfiles>
           <autoVersionSubmodules>true</autoVersionSubmodules>
+          <goals>deploy</goals>
         </configuration>
       </plugin>
 
