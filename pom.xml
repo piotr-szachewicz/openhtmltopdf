@@ -6,6 +6,7 @@
   <groupId>org.openhtmltopdf</groupId>
   <artifactId>openhtmltopdf-parent</artifactId>
   <version>${revision}</version>
+  <inceptionYear>2004</inceptionYear>
 
   <packaging>pom</packaging>
 
