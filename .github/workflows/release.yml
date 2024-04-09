@@ -37,25 +37,28 @@ jobs:
       packages: write
     if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout code
+      - name: Step 1 - Checkout code
         uses: actions/checkout@v4
-      - name: Setup Java
+      - name: Step 2 - Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PUBLIC_KEY }}" | gpg --import
+          echo "${{ secrets.GPG_SECRET_KEY }}" | gpg --import --no-tty --batch --yes
+      - name: Step 3 - Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
           cache: maven
-      - name: Configure Git User
-        run: |
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-      - name: Get current time
+          server-id: maven
+          server-username: MAVEN_USERNAME # env variable for username in deploy
+          server-password: MAVEN_CENTRAL_TOKEN # env variable for token in deploy
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE # env variable for GPG private key passphrase
+      - name: Step 4 - Get current time
         id: timestamp
         run: echo "time=$(date +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
-      - name: Prepare and perform release
-        run: mvn -B release:prepare release:perform -Drevision=${{ ${{ steps.timestamp.outputs.time }}
+      - name: Step 5 - Prepare and perform release
+        run: mvn -B deploy -Drevision=${{ ${{ steps.timestamp.outputs.time }}
         env:
-          CI_DEPLOY_USERNAME: ${{ secrets.CI_DEPLOY_USERNAME }}
-          CI_DEPLOY_PASSWORD: ${{ secrets.CI_DEPLOY_PASSWORD }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
