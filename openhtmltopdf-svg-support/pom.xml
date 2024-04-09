@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>at.datenwort.openhtmltopdf</groupId>
+    <groupId>org.openhtmltopdf</groupId>
     <artifactId>openhtmltopdf-parent</artifactId>
     <version>${revision}</version>
   </parent>
@@ -54,7 +54,7 @@
 
   <dependencies>
     <dependency>
-        <groupId>at.datenwort.openhtmltopdf</groupId>
+        <groupId>org.openhtmltopdf</groupId>
         <artifactId>openhtmltopdf-core</artifactId>
         <version>${project.version}</version>
     </dependency>

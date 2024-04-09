@@ -16,7 +16,7 @@
 
 
 	<parent>
-		<groupId>at.datenwort.openhtmltopdf</groupId>
+		<groupId>org.openhtmltopdf</groupId>
 		<artifactId>openhtmltopdf-parent</artifactId>
 		<version>${revision}</version>
 	</parent>
@@ -75,7 +75,7 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>at.datenwort.openhtmltopdf</groupId>
+			<groupId>org.openhtmltopdf</groupId>
 			<artifactId>openhtmltopdf-pdfbox</artifactId>
 			<version>${project.version}</version>
 		</dependency>
