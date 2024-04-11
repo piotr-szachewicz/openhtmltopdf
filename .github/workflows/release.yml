@@ -30,8 +30,6 @@ jobs:
     name: Create release
     needs: build
     runs-on: ubuntu-latest
-    outputs:
-      time: ${{ steps.timestamp.outputs.time }}
     permissions:
       contents: write
       packages: write
@@ -53,11 +51,14 @@ jobs:
           server-username: MAVEN_USERNAME # env variable for username in deploy
           server-password: MAVEN_CENTRAL_TOKEN # env variable for token in deploy
           gpg-passphrase: MAVEN_GPG_PASSPHRASE # env variable for GPG private key passphrase
-      - name: Step 4 - Get current time
-        id: timestamp
-        run: echo "time=$(date +"%Y%m%d%H%M%S")" >> $GITHUB_ENV
+      - name: Step 4 - Get next version
+        uses: reecetech/version-increment@2023.9.3
+        id: version
+        with:
+          scheme: semver
+          increment: patch
       - name: Step 5 - Prepare and perform release
-        run: mvn -B deploy -Drevision=${{ ${{ steps.timestamp.outputs.time }}
+        run: mvn -B deploy -Drevision=${{ ${{ steps.version.outputs.version }}
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
