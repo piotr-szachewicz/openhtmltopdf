@@ -3,7 +3,7 @@
 
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>org.openhtmltopdf</groupId>
+  <groupId>io.github.openhtmltopdf</groupId>
   <artifactId>openhtmltopdf-parent</artifactId>
   <version>${revision}</version>
   <inceptionYear>2004</inceptionYear>
